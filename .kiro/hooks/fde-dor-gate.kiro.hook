@@ -1,0 +1,13 @@
+{
+  "enabled": false,
+  "name": "FDE Definition of Ready Gate",
+  "description": "Definition of Ready gate for the FDE protocol. Before starting any spec task, reformulates the task intake into a structured Context + Instruction prompt contract (Phase 2) and validates readiness against quality standards. Enable this hook when using the #fde steering.",
+  "version": "2.0.0",
+  "when": {
+    "type": "preTaskExecution"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "FDE PROTOCOL — DEFINITION OF READY GATE\n\nYou are a Forward Deployed AI Engineer. Before starting this task, complete TWO gates: the Structured Intake Contract (Phase 2) and the Quality Standards Check.\n\n## GATE 1: STRUCTURED INTAKE CONTRACT (Phase 2)\n\nReformulate the raw task into a Context + Instruction contract. Do NOT start implementation from a bare question.\n\n### 1.1 CONTEXT\n- Which modules does this task touch? Where in the pipeline does it sit?\n- What are the upstream producers and downstream consumers?\n- What artifact type is involved — code artifact or knowledge artifact?\n- What is the knowledge architecture relevant to this task? (domain sources of truth, corpus files, framework docs)\n\n### 1.2 INSTRUCTION\n- What specifically needs to change? State it as a direct instruction, not a question.\n- What are the acceptance criteria? What does 'done' look like concretely?\n- Which test scopes must pass for this task to be complete?\n\n### 1.3 CONSTRAINTS\n- What must NOT change? (governance boundaries, existing contracts, upstream interfaces)\n- What is explicitly out of scope?\n- Are there governed artifacts that require additional review if modified?\n\nWrite out the reformulated intake contract before proceeding.\n\n## GATE 2: QUALITY STANDARDS CHECK\n\n### 2.1 APPLICABLE STANDARDS\nWhich quality reference artifacts (régua) apply to this task? Check the steering for the project's declared standards. List each applicable category and the specific documents.\n\n### 2.2 STANDARDS CONSULTED\nFor each applicable artifact, have you read the relevant sections? If not, read them now. State what you read and what is relevant.\n\n### 2.3 KNOWLEDGE GAPS\nAre there applicable standards you cannot evaluate? Flag these as risks.\n\nIf you cannot complete the intake contract or identify applicable standards, gather the missing context BEFORE starting implementation."
+  }
+}
