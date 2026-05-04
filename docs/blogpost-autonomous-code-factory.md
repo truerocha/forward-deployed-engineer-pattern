@@ -3,6 +3,8 @@
 
 > What I learned building real systems with an Autonomous Code Factory powered by Kiro.
 
+*Disclaimer: The ideas, analyses, and conclusions presented here reflect my personal views as a technology professional and must not be interpreted as official statements from any employer, current or former.*
+
 ![Autonomous Code Factory Architecture](https://raw.githubusercontent.com/truerocha/forward-deployed-engineer-pattern/main/docs/architecture/autonomous-code-factory.png)
 
 ---
@@ -142,9 +144,6 @@ What changed is where I spend my time. I moved from writing implementation code 
 
 The specification is the product. The code is the output.
 
----
-
-*Disclaimer: The ideas, analyses, and conclusions presented here reflect my personal views as a technology professional and must not be interpreted as official statements from any employer, current or former.*
 
 ---
 
