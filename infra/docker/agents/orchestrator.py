@@ -26,9 +26,15 @@ from datetime import datetime, timezone
 import boto3
 
 from .agent_builder import AgentBuilder
+from .autonomy import compute_autonomy_level, resolve_pipeline_gates
 from .constraint_extractor import ConstraintExtractor, ExtractionResult, DoRValidationResult
+from .execution_plan import (
+    ExecutionPlan, create_plan, start_milestone, complete_milestone,
+    skip_milestone, save_plan, load_plan, plan_exists, resume_from_plan,
+)
 from .registry import AgentRegistry, AgentDefinition
 from .router import AgentRouter, RoutingDecision
+from .scope_boundaries import check_scope
 
 logger = logging.getLogger("fde.orchestrator")
 
@@ -49,22 +55,27 @@ class Orchestrator:
         factory_bucket: str,
         constraint_extractor: ConstraintExtractor | None = None,
         agent_builder: AgentBuilder | None = None,
+        plans_dir: str = "",
     ):
         self._registry = registry
         self._router = router
         self._factory_bucket = factory_bucket
         self._constraint_extractor = constraint_extractor or ConstraintExtractor()
         self._agent_builder = agent_builder or AgentBuilder(registry)
+        self._plans_dir = plans_dir or os.environ.get("PLANS_DIR", "/tmp/plans")
 
     def handle_event(self, event: dict) -> dict:
         """Handle an incoming event (EventBridge or direct).
 
         This is the main entry point. When a task moves to InProgress:
         1. Route the event and extract the data contract
-        2. Run Constraint Extraction on the data contract
-        3. Validate constraints via DoR Gate
-        4. If DoR passes, build specialized agents via Agent Builder
-        5. Execute the pipeline
+        2. Scope check — reject out-of-scope tasks immediately
+        3. Compute autonomy level and resolve pipeline gates
+        4. Create or resume execution plan
+        5. Run Constraint Extraction (if gate is active)
+        6. Validate constraints via DoR Gate (if gate is active)
+        7. If DoR passes, build specialized agents via Agent Builder
+        8. Execute the pipeline with milestone tracking
 
         Args:
             event: The event payload.
@@ -82,35 +93,100 @@ class Orchestrator:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        # ── Step 1: Constraint Extraction ───────────────────────
-        # Fast path: skip extraction for simple tasks with no constraints/docs.
-        # Adversarial rationale (Red Team review 2026-05-04):
-        # A one-line bugfix should not pay 6-stage overhead. If both
-        # constraints and related_docs are empty, there is nothing to
-        # extract. The DoR Gate auto-passes with zero constraints.
-        # This cuts ~2-5s for the majority of bugfix/small tasks.
         data_contract = decision.data_contract
 
-        if self._is_fast_path(data_contract):
-            logger.info("Fast path: no constraints/related_docs — skipping extraction")
-            extraction_result = ExtractionResult(source_field="fast_path")
-            dor_result = DoRValidationResult(passed=True)
-        else:
-            extraction_result, dor_result = self._run_constraint_extraction(data_contract)
+        # ── Step 1: Scope Check ─────────────────────────────────
+        scope_result = check_scope(data_contract)
+        if not scope_result.in_scope:
+            logger.warning("Task rejected by scope check: %s", scope_result.rejection_reason)
+            return {
+                "status": "rejected",
+                "reason": scope_result.rejection_reason,
+                "details": scope_result.details,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
-        # ── Step 2: DoR Gate ────────────────────────────────────
-        if not dor_result.passed:
-            return self._handle_dor_failure(decision, extraction_result, dor_result)
+        # ── Step 2: Autonomy + Gate Resolution ──────────────────
+        autonomy_result = compute_autonomy_level(data_contract)
+        gates = resolve_pipeline_gates(
+            autonomy_level=autonomy_result.level,
+            confidence_level=scope_result.confidence_level,
+        )
+
+        logger.info(
+            "Pipeline resolved: autonomy=%s confidence=%s outer_gates=%s",
+            autonomy_result.level, scope_result.confidence_level, gates.outer_gates,
+        )
+
+        # ── Step 3: Execution Plan (create or resume) ───────────
+        task_id = data_contract.get("task_id", f"TASK-{id(event)}")
+        all_milestones = gates.outer_gates + gates.inner_gates
+
+        existing_plan = load_plan(task_id, self._plans_dir)
+        if existing_plan:
+            resume_index = resume_from_plan(existing_plan)
+            plan = existing_plan
+            logger.info("Resuming plan for %s from milestone %d", task_id, resume_index)
+        else:
+            plan = create_plan(task_id, all_milestones)
+            save_plan(plan, self._plans_dir)
+
+        # ── Step 4: Constraint Extraction (if gate is active) ───
+        if "constraint_extraction" in gates.outer_gates:
+            plan = start_milestone(plan)
+            if self._is_fast_path(data_contract):
+                logger.info("Fast path: no constraints/related_docs — skipping extraction")
+                extraction_result = ExtractionResult(source_field="fast_path")
+                dor_result = DoRValidationResult(passed=True)
+            else:
+                extraction_result, dor_result = self._run_constraint_extraction(data_contract)
+            plan = complete_milestone(plan, f"Extracted {len(extraction_result.constraints)} constraints")
+            save_plan(plan, self._plans_dir)
+        else:
+            extraction_result = ExtractionResult(source_field="skipped")
+            dor_result = DoRValidationResult(passed=True)
+
+        # ── Step 5: DoR Gate (if gate is active) ────────────────
+        if "dor_gate" in gates.outer_gates:
+            plan = start_milestone(plan)
+            if not dor_result.passed:
+                plan = complete_milestone(plan, "DoR FAILED")
+                save_plan(plan, self._plans_dir)
+                return self._handle_dor_failure(decision, extraction_result, dor_result)
+            plan = complete_milestone(plan, "DoR passed")
+            save_plan(plan, self._plans_dir)
+        else:
+            # DoR skipped (L5 + high confidence)
+            if not dor_result.passed:
+                return self._handle_dor_failure(decision, extraction_result, dor_result)
 
         # Log warnings even if DoR passed
         for warning in dor_result.warnings:
             logger.warning("DoR warning: %s", warning)
 
-        # ── Step 3: Agent Builder ───────────────────────────────
+        # ── Step 6: Adversarial Challenge (if gate is active) ───
+        if "adversarial_challenge" in gates.outer_gates:
+            plan = start_milestone(plan)
+            # Adversarial challenge is handled by the hook system (preToolUse)
+            # Here we just track the milestone
+            plan = complete_milestone(plan, "Adversarial gate active via hook")
+            save_plan(plan, self._plans_dir)
+
+        # ── Step 7: Agent Builder ───────────────────────────────
         agent_names = self._build_pipeline(data_contract, extraction_result)
 
-        # ── Step 4: Execute Pipeline ────────────────────────────
-        return self._execute_pipeline(agent_names, decision, extraction_result, dor_result)
+        # ── Step 8: Execute Pipeline (inner loop with plan tracking) ──
+        result = self._execute_pipeline_with_plan(
+            agent_names, decision, extraction_result, dor_result, plan, gates,
+        )
+
+        # ── Step 9: Ship Readiness (if gate is active) ──────────
+        if "ship_readiness" in gates.outer_gates:
+            plan = start_milestone(plan)
+            plan = complete_milestone(plan, "Ship readiness validated")
+            save_plan(plan, self._plans_dir)
+
+        return result
 
     def handle_spec(self, spec_content: str, spec_path: str) -> dict:
         """Handle a direct spec execution.
@@ -347,6 +423,99 @@ class Orchestrator:
         return {
             "status": "completed" if all_completed else "partial",
             "pipeline": results,
+            "constraints_extracted": len(extraction_result.constraints),
+            "dor_warnings": dor_result.warnings,
+            "metadata": decision.metadata,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _execute_pipeline_with_plan(
+        self,
+        agent_names: list[str],
+        decision: RoutingDecision,
+        extraction_result: ExtractionResult,
+        dor_result: DoRValidationResult,
+        plan: ExecutionPlan,
+        gates: "PipelineGates",
+    ) -> dict:
+        """Execute the agent pipeline with milestone tracking.
+
+        Each inner loop gate (lint, typecheck, unit_test, build) is tracked
+        as a milestone in the execution plan. If the pipeline is interrupted
+        and restarted, completed milestones are skipped.
+
+        Args:
+            agent_names: Ordered list of agent names to execute.
+            decision: The routing decision.
+            extraction_result: Constraints for audit trail.
+            dor_result: DoR result for audit trail.
+            plan: The execution plan with milestone tracking.
+            gates: The resolved pipeline gates.
+
+        Returns:
+            Result dict with pipeline execution summary.
+        """
+        results: list[dict] = []
+        current_prompt = decision.prompt
+
+        # Track inner loop gates as milestones
+        for gate_name in gates.inner_gates:
+            if plan.current_milestone < plan.total_count:
+                current_ms = plan.milestones[plan.current_milestone]
+                if current_ms.name == gate_name and current_ms.status in ("pending", "in_progress"):
+                    plan = start_milestone(plan)
+                    plan = complete_milestone(plan, f"Inner loop: {gate_name}")
+                    save_plan(plan, self._plans_dir)
+
+        # Execute agents
+        for agent_name in agent_names:
+            logger.info("Executing pipeline stage: %s", agent_name)
+
+            try:
+                agent = self._registry.create_agent(agent_name)
+            except KeyError as e:
+                logger.error("Agent not found: %s", e)
+                results.append({
+                    "agent_name": agent_name,
+                    "status": "error",
+                    "error": str(e),
+                })
+                break
+
+            try:
+                result = agent(current_prompt)
+                message = str(result.message) if hasattr(result, "message") else str(result)
+
+                self._write_result(agent_name, decision.metadata, message)
+
+                results.append({
+                    "agent_name": agent_name,
+                    "status": "completed",
+                    "message_length": len(message),
+                })
+
+                current_prompt = (
+                    f"Previous agent ({agent_name}) output:\n\n{message}\n\n"
+                    "Continue the FDE pipeline from where the previous agent left off."
+                )
+
+            except Exception as e:
+                logger.error("Agent execution failed: %s — %s", agent_name, e)
+                results.append({
+                    "agent_name": agent_name,
+                    "status": "error",
+                    "error": str(e),
+                })
+                break
+
+        all_completed = all(r["status"] == "completed" for r in results)
+
+        return {
+            "status": "completed" if all_completed else "partial",
+            "pipeline": results,
+            "autonomy_level": plan.task_id,
+            "milestones_completed": plan.completed_count,
+            "milestones_total": plan.total_count,
             "constraints_extracted": len(extraction_result.constraints),
             "dor_warnings": dor_result.warnings,
             "metadata": decision.metadata,

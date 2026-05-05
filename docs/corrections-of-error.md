@@ -6,6 +6,16 @@
 
 ---
 
+## COE-010: Systemic doc-drift pattern resolved with automated detection
+
+- **Date**: 2026-05-05
+- **Severity**: Process (systemic)
+- **Found in**: COE-001 through COE-006 (6 of 9 entries were "doc was outdated")
+- **Description**: Documentation drift from code was the most repeated failure pattern. README badge counts, ADR counts, flow counts, and design-document component tables all drifted without detection.
+- **Fix**: Created `infra/docker/agents/doc_gardening.py` with 5 automated checks and `fde-doc-gardening` hook (userTriggered). The agent can now detect drift on demand.
+- **Root cause**: No automated mechanism to compare documented state against filesystem state. Manual checking doesn't scale.
+- **Prevention**: Run `fde-doc-gardening` hook before releases. Future: trigger on `postTaskExecution` for continuous validation.
+
 ## COE-009: Data contract shipped without ADR, CHANGELOG, or architecture update
 
 - **Date**: 2026-05-04

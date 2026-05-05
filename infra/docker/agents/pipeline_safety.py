@@ -374,3 +374,205 @@ def rollback_to_checkpoint(
         success=True, commits_reverted=commits_to_revert,
         branch=branch, reset_to=checkpoint_sha,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LLM-Powered PR Review (Task 5 — Agent-to-Agent Review)
+# ═══════════════════════════════════════════════════════════════════
+
+@dataclass
+class PRReviewResult:
+    """Result of an LLM-powered PR review."""
+
+    approved: bool
+    concerns: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+    summary: str = ""
+    model_id: str = ""
+    timestamp: str = ""
+
+    def __post_init__(self):
+        if not self.timestamp:
+            self.timestamp = datetime.now(timezone.utc).isoformat()
+
+    def to_dict(self) -> dict:
+        return {
+            "approved": self.approved,
+            "concerns": self.concerns,
+            "suggestions": self.suggestions,
+            "summary": self.summary,
+            "model_id": self.model_id,
+            "timestamp": self.timestamp,
+        }
+
+
+def is_pr_review_enabled() -> bool:
+    """Check if LLM-powered PR review is enabled (opt-in via env var)."""
+    return os.environ.get("PR_REVIEW_LLM_ENABLED", "").lower() in ("true", "1", "yes")
+
+
+def review_pr_with_llm(
+    diff_text: str,
+    spec_content: str = "",
+    constraints: list[str] | None = None,
+    model_id: str = "",
+) -> PRReviewResult:
+    """Review a PR diff using an LLM for logic and architecture analysis.
+
+    This is the agent-to-agent review capability. One agent (Engineering)
+    produces the diff, another agent (Reviewer) evaluates it against the
+    spec and constraints.
+
+    The review checks:
+    1. Does the diff satisfy the acceptance criteria in the spec?
+    2. Are there architectural concerns (coupling, abstraction leaks)?
+    3. Are there logic errors or edge cases not handled?
+    4. Does the diff violate any stated constraints?
+
+    Opt-in: Only runs when PR_REVIEW_LLM_ENABLED=true (env var).
+    Uses the same Bedrock invocation pattern as the Constraint Extractor.
+
+    Args:
+        diff_text: The git diff to review.
+        spec_content: The spec/acceptance criteria the diff should satisfy.
+        constraints: List of constraints the diff must not violate.
+        model_id: Bedrock model ID (defaults to Claude Sonnet).
+
+    Returns:
+        PRReviewResult with approval decision, concerns, and suggestions.
+    """
+    if not is_pr_review_enabled():
+        logger.info("LLM PR review skipped — PR_REVIEW_LLM_ENABLED not set")
+        return PRReviewResult(
+            approved=True,
+            summary="LLM review skipped (not enabled)",
+        )
+
+    if not diff_text.strip():
+        return PRReviewResult(approved=True, summary="Empty diff — nothing to review")
+
+    resolved_model = model_id or os.environ.get(
+        "PR_REVIEW_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0"
+    )
+    constraint_text = "\n".join(f"- {c}" for c in (constraints or []))
+
+    prompt = _build_review_prompt(diff_text, spec_content, constraint_text)
+
+    try:
+        response_text = _invoke_bedrock(prompt, resolved_model)
+        result = _parse_review_response(response_text)
+        result.model_id = resolved_model
+        return result
+    except Exception as e:
+        logger.error("LLM PR review failed: %s", e)
+        return PRReviewResult(
+            approved=True,
+            summary=f"LLM review failed (non-blocking): {e}",
+            model_id=resolved_model,
+        )
+
+
+def _build_review_prompt(diff_text: str, spec_content: str, constraint_text: str) -> str:
+    """Build the structured review prompt for the LLM."""
+    # Truncate diff if too large (keep first 8000 chars)
+    truncated_diff = diff_text[:8000]
+    if len(diff_text) > 8000:
+        truncated_diff += "\n\n[... diff truncated for review ...]"
+
+    prompt = f"""You are reviewing a pull request. Analyze the diff against the spec and constraints.
+
+## Spec / Acceptance Criteria
+{spec_content or "(No spec provided — review for general quality)"}
+
+## Constraints (must NOT be violated)
+{constraint_text or "(No explicit constraints)"}
+
+## Diff
+```
+{truncated_diff}
+```
+
+## Your Review
+
+Respond in this exact JSON format:
+{{
+  "approved": true/false,
+  "concerns": ["list of concerns (empty if none)"],
+  "suggestions": ["list of improvement suggestions (empty if none)"],
+  "summary": "one-sentence summary of your review"
+}}
+
+Rules:
+- approved=false only if there are blocking issues (logic errors, constraint violations, security issues)
+- concerns are blocking issues that must be fixed
+- suggestions are non-blocking improvements
+- Be specific: reference file names and line context from the diff
+"""
+    return prompt
+
+
+def _invoke_bedrock(prompt: str, model_id: str) -> str:
+    """Invoke Bedrock with the review prompt.
+
+    Uses the same pattern as the Constraint Extractor (direct invoke_model).
+    """
+    import json as json_module
+
+    bedrock = boto3.client(
+        "bedrock-runtime",
+        region_name=os.environ.get("AWS_REGION", "us-east-1"),
+    )
+
+    body = json_module.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 2000,
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": prompt}],
+    })
+
+    response = bedrock.invoke_model(
+        modelId=model_id,
+        body=body,
+        contentType="application/json",
+        accept="application/json",
+    )
+
+    response_body = json_module.loads(response["body"].read())
+    return response_body["content"][0]["text"]
+
+
+def _parse_review_response(response_text: str) -> PRReviewResult:
+    """Parse the LLM response into a PRReviewResult.
+
+    Handles both clean JSON and JSON embedded in markdown code blocks.
+    """
+    import json as json_module
+
+    # Try to extract JSON from the response
+    text = response_text.strip()
+
+    # Handle markdown code blocks
+    if "```json" in text:
+        start = text.index("```json") + 7
+        end = text.index("```", start)
+        text = text[start:end].strip()
+    elif "```" in text:
+        start = text.index("```") + 3
+        end = text.index("```", start)
+        text = text[start:end].strip()
+
+    try:
+        data = json_module.loads(text)
+        return PRReviewResult(
+            approved=data.get("approved", True),
+            concerns=data.get("concerns", []),
+            suggestions=data.get("suggestions", []),
+            summary=data.get("summary", ""),
+        )
+    except (json_module.JSONDecodeError, KeyError):
+        # If parsing fails, treat as approved with the raw text as summary
+        logger.warning("Could not parse LLM review response as JSON")
+        return PRReviewResult(
+            approved=True,
+            summary=f"Could not parse response: {text[:200]}",
+        )

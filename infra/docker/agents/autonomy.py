@@ -127,12 +127,27 @@ _SKIP_OUTER_GATES: dict[str, list[str]] = {
 }
 
 
-def resolve_pipeline_gates(autonomy_level: str) -> PipelineGates:
-    """Resolve which pipeline gates to run based on autonomy level."""
+def resolve_pipeline_gates(autonomy_level: str, confidence_level: str = "") -> PipelineGates:
+    """Resolve which pipeline gates to run based on autonomy level and confidence.
+
+    For L5 tasks with high confidence, we skip dor_gate and ship_readiness
+    because the inner loop gates provide sufficient validation. This reduces
+    latency for high-confidence bugfixes and documentation tasks.
+
+    Args:
+        autonomy_level: The computed autonomy level (L1-L5).
+        confidence_level: Optional confidence signal ("high", "medium", "low").
+            When "high" and autonomy_level is "L5", additional gates are skipped.
+    """
     if autonomy_level not in _LEVEL_DEFINITIONS:
         autonomy_level = "L4"
 
-    skip_outer = _SKIP_OUTER_GATES.get(autonomy_level, [])
+    skip_outer = list(_SKIP_OUTER_GATES.get(autonomy_level, []))
+
+    # Minimal gates for high-confidence L5 tasks (Task 7 — Loop Mindset)
+    if autonomy_level == "L5" and confidence_level == "high":
+        skip_outer.extend(["dor_gate", "ship_readiness"])
+
     outer_gates = [g for g in _ALL_OUTER_GATES if g not in skip_outer]
     inner_gates = list(_ALL_INNER_GATES)
     defn = _LEVEL_DEFINITIONS[autonomy_level]

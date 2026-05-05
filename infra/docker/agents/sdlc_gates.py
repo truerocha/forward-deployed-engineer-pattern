@@ -253,7 +253,8 @@ def check_lint(workspace_dir: str, tech_stack: list[str]) -> tuple[bool, str, li
             all_errors.append(f"{cmd}: command not found")
 
     if all_errors:
-        return False, f"Lint failed: {len(all_errors)} errors", all_errors, []
+        enriched_errors = [_enrich_lint_output(e, tech_stack) for e in all_errors]
+        return False, f"Lint failed: {len(enriched_errors)} errors", enriched_errors, []
     return True, "All lint checks passed", [], []
 
 
@@ -416,3 +417,113 @@ def _resolve_commands(tech_stack: list[str], command_map: dict[str, list[str]]) 
             commands.extend(cmds)
 
     return commands
+
+
+# ─── Lint Remediation Enrichment ────────────────────────────────
+
+# Maps lint error codes to actionable remediation instructions.
+# The agent sees these in the inner loop retry, giving it a concrete fix strategy.
+REMEDIATION_MAP: dict[str, str] = {
+    # Python — ruff / flake8
+    "E501": (
+        "Remediation: Split line at a logical boundary (after comma, operator, or "
+        "opening bracket) or extract a sub-expression into a named variable."
+    ),
+    "F401": (
+        "Remediation: Remove the unused import. If it's re-exported for public API, "
+        "add it to __all__ or use 'noqa: F401' with a comment explaining why."
+    ),
+    "F841": (
+        "Remediation: Remove the unused variable assignment, or prefix with underscore "
+        "(_var) if the assignment has a necessary side-effect."
+    ),
+    "E302": (
+        "Remediation: Add two blank lines before the top-level function or class definition."
+    ),
+    "E303": (
+        "Remediation: Remove extra blank lines. Maximum is 2 between top-level definitions, "
+        "1 inside a function/class body."
+    ),
+    "W291": (
+        "Remediation: Remove trailing whitespace from the end of the line."
+    ),
+    "W292": (
+        "Remediation: Add a newline at the end of the file."
+    ),
+    "E711": (
+        "Remediation: Use 'is None' or 'is not None' instead of '== None' or '!= None'."
+    ),
+    "E712": (
+        "Remediation: Use 'if value:' or 'if not value:' instead of '== True' or '== False'."
+    ),
+    "I001": (
+        "Remediation: Re-order imports to follow isort convention: stdlib → third-party → local. "
+        "Run 'ruff check --fix' or 'isort .' to auto-fix."
+    ),
+    # TypeScript / JavaScript — eslint
+    "no-unused-vars": (
+        "Remediation: Remove the unused variable/import, or prefix with underscore "
+        "(_unusedVar) if it's a required function parameter placeholder."
+    ),
+    "no-console": (
+        "Remediation: Replace console.log with a structured logger (e.g., winston, pino). "
+        "If this is intentional debug output, use // eslint-disable-next-line no-console."
+    ),
+    "@typescript-eslint/no-explicit-any": (
+        "Remediation: Replace 'any' with a specific type. Use 'unknown' if the type is "
+        "truly dynamic, then narrow with type guards."
+    ),
+    "prefer-const": (
+        "Remediation: Change 'let' to 'const' since this variable is never reassigned."
+    ),
+    "no-var": (
+        "Remediation: Replace 'var' with 'let' (if reassigned) or 'const' (if not)."
+    ),
+    "@typescript-eslint/no-unused-vars": (
+        "Remediation: Remove the unused variable/import, or prefix with underscore "
+        "(_unusedVar) if it's a required function parameter placeholder."
+    ),
+    "eqeqeq": (
+        "Remediation: Use '===' and '!==' instead of '==' and '!=' for type-safe comparison."
+    ),
+    # Go — go vet / staticcheck
+    "SA1000": (
+        "Remediation: Fix the invalid regular expression. Check for unescaped special characters."
+    ),
+    "SA4006": (
+        "Remediation: Remove the unused variable assignment or use the blank identifier '_'."
+    ),
+    # Terraform — terraform fmt
+    "terraform fmt": (
+        "Remediation: Run 'terraform fmt -recursive' to auto-format all .tf files."
+    ),
+}
+
+
+def _enrich_lint_output(raw_output: str, tech_stack: list[str]) -> str:
+    """Enrich raw lint output with actionable remediation instructions.
+
+    Scans each line of lint output for known error codes and appends
+    the corresponding remediation hint. This gives the agent a concrete
+    fix strategy in the inner loop retry instead of raw error text.
+
+    Args:
+        raw_output: The raw stderr/stdout from the lint command.
+        tech_stack: The detected tech stack (used for future stack-specific logic).
+
+    Returns:
+        Enriched output with remediation hints appended after matching lines.
+    """
+    if not raw_output.strip():
+        return raw_output
+
+    enriched_lines: list[str] = []
+    for line in raw_output.splitlines():
+        enriched_lines.append(line)
+        # Check each known code against the line
+        for code, remediation in REMEDIATION_MAP.items():
+            if code in line:
+                enriched_lines.append(f"  → {remediation}")
+                break  # One remediation per line
+
+    return "\n".join(enriched_lines)

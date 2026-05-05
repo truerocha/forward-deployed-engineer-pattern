@@ -155,6 +155,55 @@ def run_shell_command(command: str, working_dir: str = "/tmp/workspace") -> str:
         return f"ERROR: {e}"
 
 
+@tool
+def read_factory_metrics(task_id: str) -> str:
+    """Read DORA metrics for a specific task (read-only observability).
+
+    Gives the agent awareness of its own performance history for a task.
+    Returns structured metrics including lead time, outcome, and stage durations.
+
+    Args:
+        task_id: The task identifier to query metrics for.
+
+    Returns:
+        JSON string with the task's metrics, or an error message.
+    """
+    from .dora_metrics import DORACollector
+
+    try:
+        collector = DORACollector(factory_bucket=_FACTORY_BUCKET)
+        metrics = collector.get_task_metrics(task_id)
+        return json.dumps({"task_id": task_id, "metrics": metrics, "count": len(metrics)}, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "task_id": task_id})
+
+
+@tool
+def read_factory_health(window_days: int = 30) -> str:
+    """Read the latest Factory Health Report (read-only observability).
+
+    Returns the DORA metrics summary including:
+    - DORA level classification (Elite/High/Medium/Low)
+    - Lead time, deployment frequency, change failure rate, MTTR
+    - Domain-segmented acceptance rates
+    - Factory-specific metrics (constraint extraction rate, gate pass rate)
+
+    Args:
+        window_days: Number of days to include in the report (default 30).
+
+    Returns:
+        JSON string with the factory health report.
+    """
+    from .dora_metrics import DORACollector
+
+    try:
+        collector = DORACollector(factory_bucket=_FACTORY_BUCKET)
+        report = collector.generate_factory_report(window_days=window_days)
+        return json.dumps(report, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "window_days": window_days})
+
+
 RECON_TOOLS = [read_spec, run_shell_command]
 ENGINEERING_TOOLS = [read_spec, write_artifact, run_shell_command, update_github_issue, update_gitlab_issue, update_asana_task]
-REPORTING_TOOLS = [write_artifact, update_github_issue, update_gitlab_issue, update_asana_task]
+REPORTING_TOOLS = [write_artifact, update_github_issue, update_gitlab_issue, update_asana_task, read_factory_metrics, read_factory_health]
