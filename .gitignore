@@ -25,3 +25,6 @@ docs/example/*.pdf
 # Blogposts (kept locally, not in repo)
 docs/blogpost-*.md
 docs/internal/blogpost-*.md
+
+# Internal planning documents (not for public repo)
+docs/design/task-plan-fde.md
