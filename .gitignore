@@ -21,3 +21,7 @@ infra/terraform/factory.tfvars
 
 # Reference PDFs (kept locally, not in repo)
 docs/example/*.pdf
+
+# Blogposts (kept locally, not in repo)
+docs/blogpost-*.md
+docs/internal/blogpost-*.md
