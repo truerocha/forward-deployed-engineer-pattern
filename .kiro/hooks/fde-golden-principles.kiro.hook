@@ -1,0 +1,12 @@
+{
+  "name": "FDE Golden Principles",
+  "version": "1.0.0",
+  "description": "Validates code against project-specific structural invariants: max file size (500 lines), no print() in production, module docstrings, no import *, max function length (50 lines). Reports deviations with remediation instructions.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run the golden principles check against this workspace. Validate all Python files in infra/docker/agents/ against:\n- GP-01: Max file size (500 non-empty lines)\n- GP-02: No print() in production code (use logger)\n- GP-03: All modules have docstrings\n- GP-04: No 'from X import *'\n- GP-05: Max function length (50 lines)\n\nFor each violation found, report: principle ID, file, line (if applicable), what's wrong, and the remediation instruction.\n\nUse the golden_principles module: `from agents.golden_principles import check_principles`"
+  }
+}

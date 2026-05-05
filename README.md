@@ -6,7 +6,7 @@
 > The Staff Engineer writes specs. The factory ships code.
 
 [![Tests](https://img.shields.io/badge/tests-54%20passed-brightgreen)]()
-[![Hooks](https://img.shields.io/badge/hooks-14%20(4%20V2%20%2B%2010%20V3)-blue)]()
+[![Hooks](https://img.shields.io/badge/hooks-16%20(4%20V2%20%2B%2012%20V3)-blue)]()
 [![Autonomy Level](https://img.shields.io/badge/level-L4%20Autonomous%20Factory-purple)]()
 
 ---
@@ -117,7 +117,7 @@ For each project in your manifest:
 
 See [docs/guides/fde-adoption-guide.md](docs/guides/fde-adoption-guide.md) for the full walkthrough with Next.js and Python microservice examples.
 
-## The 14 Hooks
+## The 16 Hooks
 
 | Hook | Event | Purpose | Level |
 |------|-------|---------|-------|
@@ -135,6 +135,8 @@ See [docs/guides/fde-adoption-guide.md](docs/guides/fde-adoption-guide.md) for t
 | fde-alternative-exploration | userTriggered | 2 approaches for L4 architectural tasks | L4 |
 | fde-notes-consolidate | userTriggered | Archive old notes, merge duplicates | L3+ |
 | fde-prompt-refinement | userTriggered | Meta-agent: factory health + prompt improvements | L3+ |
+| fde-doc-gardening | userTriggered | Detect documentation drift from code | L3+ |
+| fde-golden-principles | userTriggered | Validate code against structural invariants | L3+ |
 
 ## Repo Structure
 
@@ -149,7 +151,7 @@ forward-deployed-engineer-pattern/
 |   +-- settings/                   # MCP config template
 +-- docs/
 |   +-- architecture/               # System diagram + design document (DDR)
-|   +-- adr/                        # 10 Architecture Decision Records
+|   +-- adr/                        # 13 Architecture Decision Records
 |   +-- flows/                      # 13 Mermaid feature flow diagrams
 |   +-- blueprint/                  # V3 blueprint + artifacts + deploy guide
 |   +-- design/                     # V2 design document (research foundations)
@@ -210,8 +212,8 @@ The factory integrates with GitHub Actions and GitLab CI Ultimate (through mirro
 | [Blueprint](docs/blueprint/fde-blueprint-design.md) | Full architecture (16 sections) | You want to understand the design decisions |
 | [Hook Deploy Guide](docs/blueprint/fde-hooks-deploy-guide.md) | Exact JSON for all 13 hooks | You want to deploy or customize hooks |
 | [Design Document](docs/architecture/design-document.md) | Requirements, components, information flow | You want the formal tech design |
-| [Feature Flows](docs/flows/README.md) | 10 Mermaid diagrams | You want to see how each feature works |
-| [ADRs](docs/adr/) | 7 Architecture Decision Records | You want to understand why decisions were made |
+| [Feature Flows](docs/flows/README.md) | 13 Mermaid diagrams | You want to see how each feature works |
+| [ADRs](docs/adr/) | 13 Architecture Decision Records | You want to understand why decisions were made |
 | [V2 Design Doc](docs/design/forward-deployed-ai-engineers.md) | Research foundations | You want the academic grounding |
 | [Blogpost](docs/blogpost-autonomous-code-factory.md) | Public summary | You want to share with your team |
 

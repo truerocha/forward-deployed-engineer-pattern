@@ -6,6 +6,76 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased] — 2026-05-05
+
+### Added — E2E Pipeline Data Travel Validation
+- `tests/test_pipeline_data_travel.py` — 7 cross-module contract tests validating data flows across: Scope Check → Autonomy → Gate Resolution → Execution Plan → SDLC Gates (with enrichment). Proves module interfaces are compatible.
+- `tests/test_orchestrator_e2e.py` — 3 E2E tests calling `orchestrator.handle_event()` with real EventBridge events. Proves the Orchestrator ACTUALLY wires scope check, autonomy, gate resolution, and execution plan tracking in production code.
+- Resolves the "Node-scoped verification" anti-pattern (COE-052): modules are now validated as a composed system, not just in isolation.
+
+### Changed — Orchestrator Wiring (v2 → v3)
+- `infra/docker/agents/orchestrator.py` — `handle_event()` now wires the full pipeline:
+  1. Scope Check (`check_scope()`) rejects out-of-scope tasks before any work starts
+  2. Autonomy Level (`compute_autonomy_level()`) determines supervision level
+  3. Gate Resolution (`resolve_pipeline_gates(level, confidence)`) determines which gates to run
+  4. Execution Plan (`create_plan()` / `load_plan()` / `resume_from_plan()`) enables resumable execution
+  5. Milestone tracking persists progress to disk after each gate completion
+- New imports: `autonomy`, `execution_plan`, `scope_boundaries`
+- New constructor parameter: `plans_dir` (filesystem path for execution plan persistence)
+- New method: `_execute_pipeline_with_plan()` tracks inner loop gates as milestones
+- Backward compatible: `handle_spec()` path unchanged
+
+### Added — Agent-to-Agent PR Review (Task 5)
+- `review_pr_with_llm()` in `pipeline_safety.py` — LLM-powered PR review that evaluates diffs against spec and constraints. Returns structured `PRReviewResult` with approved/concerns/suggestions
+- `PRReviewResult` dataclass with `to_dict()` serialization
+- Opt-in via `PR_REVIEW_LLM_ENABLED=true` env var (same pattern as constraint extraction)
+- `_build_review_prompt()` — structured prompt with diff truncation (8000 char limit)
+- `_parse_review_response()` — handles clean JSON, markdown code blocks, and invalid responses gracefully
+- `_invoke_bedrock()` — same Bedrock invocation pattern as Constraint Extractor
+- `tests/test_pr_llm_review.py` — 12 BDD scenarios covering opt-in behavior, response parsing, prompt construction, and dataclass serialization
+
+### Added — Observability Accessible to Agent (Task 6)
+- `read_factory_metrics` @tool in `tools.py` — returns DORA metrics for a specific task_id as JSON (read-only)
+- `read_factory_health` @tool in `tools.py` — returns Factory Health Report as JSON (read-only, configurable window_days)
+- Both tools added to `REPORTING_TOOLS` list (Reporting Agent only, not Engineering Agent)
+- `tests/test_observability_tools.py` — 7 BDD scenarios validating tool registration, read-only separation, signatures, and callability
+
+### Added — Execution Plans with Progress Tracking (Task 1)
+- `infra/docker/agents/execution_plan.py` — Resumable pipeline execution with `ExecutionPlan` dataclass, milestone tracking (pending → in_progress → completed/skipped), append-only progress and decision logs, filesystem persistence (save/load/plan_exists), and `resume_from_plan()` that finds the first non-completed milestone
+- `tests/test_execution_plans.py` — 15 BDD scenarios covering: plan creation, milestone progression, interruption/resume cycle (the core value prop), persistence roundtrip, corrupted file handling, and decision logging
+- Source: OpenAI PLANS.md Cookbook — enables L3/L4 tasks to resume from interruption point
+
+### Added — Doc-Gardening Agent (Task 2)
+- `infra/docker/agents/doc_gardening.py` — Documentation drift detection with function registry pattern. 5 built-in checks: hook count badge, ADR count, flow count, design-document components, CHANGELOG freshness
+- `.kiro/hooks/fde-doc-gardening.kiro.hook` — userTriggered hook to scan for documentation drift
+- `tests/test_doc_gardening.py` — 12 BDD scenarios validating drift detection for all check types, registry extensibility, and crash resilience
+- Resolves COE pattern: 6 of 9 entries were "doc was outdated"
+
+### Added — Golden Principles + Garbage Collection (Task 4)
+- `docs/design/golden-principles.md` — 5 mechanical code quality invariants (GP-01 through GP-05) with rule, rationale, detection logic, and remediation for each
+- `infra/docker/agents/golden_principles.py` — Principle validation engine with `@register_principle` decorator pattern. Checks: max file size (500 lines), no print() in production, module docstrings, no import *, max function length (50 lines)
+- `.kiro/hooks/fde-golden-principles.kiro.hook` — userTriggered hook to validate code against structural invariants
+- `tests/test_golden_principles.py` — 13 BDD scenarios validating all 5 principles (positive + negative cases) plus integration and registry tests
+
+### Added — Custom Linters with Remediation Messages (Task 3)
+- `REMEDIATION_MAP` in `sdlc_gates.py` — 20 error code → remediation instruction mappings covering Python (ruff/flake8), TypeScript/JavaScript (eslint), Go (staticcheck), and Terraform (fmt)
+- `_enrich_lint_output()` in `sdlc_gates.py` — post-processes raw lint output, appending actionable fix instructions after each recognized error line
+- `check_lint()` now returns enriched errors so the agent sees remediation hints in the inner loop retry
+- `tests/test_lint_remediation.py` — 12 BDD scenarios validating enrichment for Python, TypeScript, Go, multi-error, unknown codes, and edge cases
+
+### Added — Minimal Gates for L5 High-Confidence Tasks (Task 7)
+- `resolve_pipeline_gates()` in `autonomy.py` now accepts optional `confidence_level` parameter
+- L5 tasks with `confidence_level == "high"` skip `dor_gate` and `ship_readiness` (inner loop gates provide sufficient validation)
+- L5 tasks with any other confidence level retain standard L5 behavior (backward compatible)
+- L4 and below are unaffected regardless of confidence level
+- 5 new BDD scenarios in `tests/test_autonomy_level.py` (class `TestMinimalGatesL5`)
+
+### Changed — Sprint 1 Throughput Improvements
+- Source: OpenAI Harness Engineering ("custom lints with remediation instructions") + Ralph Loop ("corrections are cheap, waiting is expensive")
+- Impact: Inner loop first-pass rate improvement (Task 3) + reduced latency for high-confidence L5 tasks (Task 7)
+
+---
+
 ## [Unreleased] — 2026-05-04
 
 ### Added — Authentication and Data Journey Validation

@@ -1,0 +1,12 @@
+{
+  "name": "FDE Doc-Gardening",
+  "version": "1.0.0",
+  "description": "Scans for documentation drift from code. Checks hook count, ADR count, flow count, design-document components, and CHANGELOG freshness. Reports all drifts found with current vs documented values.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run the doc-gardening checks. For this workspace, validate:\n1. README.md hook count badge matches actual .kiro/hooks/*.hook file count\n2. README.md ADR count references match actual docs/adr/ADR-*.md file count\n3. README.md Mermaid flow count references match actual docs/flows/*.md file count (excluding README.md)\n4. docs/architecture/design-document.md components table references all modules in infra/docker/agents/\n5. CHANGELOG.md has a non-empty [Unreleased] section\n\nFor each drift found, report: file, what is documented, what the actual state is, and suggest the fix.\n\nUse the doc_gardening module: `from agents.doc_gardening import run_all_checks`"
+  }
+}

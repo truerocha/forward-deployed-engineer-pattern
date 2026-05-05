@@ -52,7 +52,7 @@ See `docs/architecture/autonomous-code-factory.png` for the system diagram.
 | Component | Owned State | Responsibility |
 |-----------|-------------|----------------|
 | Spec Control Plane | `.kiro/specs/` | Stores work items, acceptance criteria, holdout scenarios |
-| Hook Engine | `.kiro/hooks/` (14 hooks) | Gates execution at preToolUse, postToolUse, preTask, postTask, userTriggered |
+| Hook Engine | `.kiro/hooks/` (16 hooks) | Gates execution at preToolUse, postToolUse, preTask, postTask, userTriggered |
 | Steering Context | `.kiro/steering/` + `~/.kiro/steering/` | Provides project-specific and universal context to the agent |
 | Notes System | `.kiro/notes/` + `~/.kiro/notes/shared/` | Persists cross-session knowledge with verification status |
 | Meta System | `.kiro/meta/` | Stores human feedback and prompt refinement history |
@@ -62,6 +62,26 @@ See `docs/architecture/autonomous-code-factory.png` for the system diagram.
 | Onboarding Pipeline | `scripts/pre-flight-fde.sh` → `validate-deploy-fde.sh` → `code-factory-setup.sh` | Three-script E2E onboarding with linter mode |
 | Cloud Infrastructure | `infra/terraform/` | Terraform IaC for ECR, ECS Fargate, Bedrock, S3, Secrets Manager, VPC |
 | Strands Agent | `infra/docker/` | Headless agent container for ECS Fargate execution |
+| Agent Orchestrator | `infra/docker/agents/orchestrator.py` | Full pipeline: Router → Scope → Autonomy → Gates → Plan → Execute |
+| Agent Router | `infra/docker/agents/router.py` | Maps EventBridge events to data contracts |
+| Agent Registry | `infra/docker/agents/registry.py` | Stores agent definitions, creates Strands Agent instances |
+| Agent Builder | `infra/docker/agents/agent_builder.py` | Just-in-time agent provisioning from data contract |
+| Constraint Extractor | `infra/docker/agents/constraint_extractor.py` | Two-pass constraint extraction (rule-based + opt-in LLM) |
+| Scope Boundaries | `infra/docker/agents/scope_boundaries.py` | Rejects out-of-scope tasks, computes confidence level |
+| Autonomy | `infra/docker/agents/autonomy.py` | Computes L1-L5 autonomy level, resolves pipeline gates |
+| Execution Plan | `infra/docker/agents/execution_plan.py` | Resumable milestone tracking with filesystem persistence |
+| SDLC Gates | `infra/docker/agents/sdlc_gates.py` | Inner loop (lint+typecheck+test+build) and outer loop gates with remediation |
+| Pipeline Safety | `infra/docker/agents/pipeline_safety.py` | PR diff review (pattern + LLM), automatic rollback |
+| DORA Metrics | `infra/docker/agents/dora_metrics.py` | 4 DORA + 5 factory metrics, domain segmentation, health report |
+| Failure Modes | `infra/docker/agents/failure_modes.py` | Classifies WHY tasks fail (FM-01 through FM-99) |
+| Project Isolation | `infra/docker/agents/project_isolation.py` | SaaS-kernel per-task isolation (S3, workspace, branch, correlation) |
+| Prompt Registry | `infra/docker/agents/prompt_registry.py` | Versioned prompt storage with SHA-256 hash integrity |
+| Task Queue | `infra/docker/agents/task_queue.py` | DynamoDB-backed DAG dependency resolution |
+| Agent Lifecycle | `infra/docker/agents/lifecycle.py` | Instance tracking through CREATED → RUNNING → COMPLETED |
+| Agent Tools | `infra/docker/agents/tools.py` | 8 @tool functions including observability (read_factory_metrics, read_factory_health) |
+| Agent Prompts | `infra/docker/agents/prompts.py` | FDE system prompts for 3 agent roles |
+| Doc Gardening | `infra/docker/agents/doc_gardening.py` | Automated documentation drift detection (5 checks) |
+| Golden Principles | `infra/docker/agents/golden_principles.py` | Mechanical code quality invariants (5 principles) |
 | IAM Validator | `scripts/validate-aws-iam.py` | Per-service AWS IAM permission checks |
 | Provision Script | `scripts/provision-workspace.sh` | Legacy manual onboarding (--global / --project) |
 
