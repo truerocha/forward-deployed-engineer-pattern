@@ -47,6 +47,21 @@ Standard AI-assisted development follows a reactive cycle: the human writes prom
 
 See `docs/architecture/autonomous-code-factory.png` for the system diagram.
 
+See `docs/architecture/reference-architecture.png` for the full AWS reference architecture (all services, data flows, and integration points).
+
+### Diagrams
+
+| Diagram | Scope | Generator |
+|---------|-------|-----------|
+| [Reference Architecture](reference-architecture.png) | All AWS services, end-to-end data flow | `scripts/generate_reference_architecture.py` |
+| [Autonomous Code Factory](autonomous-code-factory.png) | Logical spine (7-step pipeline) | `scripts/generate_architecture_diagram.py` |
+| [Hero Overview](planes/00-hero-overview.png) | 5 planes as blocks | `scripts/generate_plane_diagrams.py` |
+| [VSM Plane](planes/01-vsm-plane.png) | Git, ALM, isolation, delivery | `scripts/generate_plane_diagrams.py` |
+| [FDE Plane](planes/02-fde-plane.png) | Autonomy, builder, pipeline | `scripts/generate_plane_diagrams.py` |
+| [Context Plane](planes/03-context-plane.png) | Constraints, prompts, scope | `scripts/generate_plane_diagrams.py` |
+| [Data Plane](planes/04-data-plane.png) | Router, queue, storage, events | `scripts/generate_plane_diagrams.py` |
+| [Control Plane](planes/05-control-plane.png) | SDLC, DORA, safety, failure modes | `scripts/generate_plane_diagrams.py` |
+
 ### Components
 
 | Component | Owned State | Responsibility |
@@ -82,6 +97,7 @@ See `docs/architecture/autonomous-code-factory.png` for the system diagram.
 | Agent Prompts | `infra/docker/agents/prompts.py` | FDE system prompts for 3 agent roles |
 | Doc Gardening | `infra/docker/agents/doc_gardening.py` | Automated documentation drift detection (5 checks) |
 | Golden Principles | `infra/docker/agents/golden_principles.py` | Mechanical code quality invariants (5 principles) |
+| Repo Onboarding Agent | `infra/docker/agents/onboarding/` (13 modules), `catalogs/{owner}/{repo}/catalog.db` (S3) | Phase 0: Scans repository structure (Magika + tree-sitter), infers patterns (Haiku), persists SQLite catalog, generates project-specific FDE steering |
 | IAM Validator | `scripts/validate-aws-iam.py` | Per-service AWS IAM permission checks |
 | Provision Script | `scripts/provision-workspace.sh` | Legacy manual onboarding (--global / --project) |
 
@@ -97,6 +113,9 @@ See `docs/architecture/autonomous-code-factory.png` for the system diagram.
 | Agent | Notes System | Hindsight notes |
 | Agent | MCP Integration | ALM updates, MR creation |
 | Meta System | Hook Engine | Prompt improvement suggestions |
+| Staff Engineer | Repo Onboarding Agent | Trigger onboarding (EventBridge/hook) |
+| Repo Onboarding Agent | S3 Artifacts | SQLite catalog + steering draft |
+| Repo Onboarding Agent | FDE Intake (Phase 2) | tech_stack, level_patterns, module_context |
 
 ## Key Design Decisions
 
@@ -111,6 +130,12 @@ See `docs/adr/` for detailed Architecture Decision Records:
 - ADR-008: Multi-Platform Project Tooling (GitHub Projects, Asana, GitLab Ultimate)
 - ADR-009: AWS Cloud Infrastructure for Headless Agent Execution
 - ADR-010: Data Contract for Task Input
+- ADR-011: Multi-Cloud Adapter YAGNI
+- ADR-012: Adversarial Review — Over-Engineering and Gaps
+- ADR-013: Enterprise-Grade Autonomy and Observability
+- ADR-014: Secret Isolation and DAG Parallelism
+- ADR-015: Repo Onboarding Agent — Phase 0 Codebase Reasoning
+- ADR-016: Ephemeral Catalog and Data Residency for Regulated Environments
 
 ## Testing Design
 

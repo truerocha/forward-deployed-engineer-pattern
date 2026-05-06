@@ -1,127 +1,272 @@
 #!/usr/bin/env bash
-set -uo pipefail
-
 # ═══════════════════════════════════════════════════════════════════
-# Forward Deployed Engineer — E2E Cloud Validation
+# Code Factory — End-to-End Cloud Health Check
 # ═══════════════════════════════════════════════════════════════════
 #
-# Tests the deployed cloud infrastructure end-to-end.
-# Usage: bash scripts/validate-e2e-cloud.sh [--profile profile-name]
+# Validates all subsystems required for the Code Factory to operate.
+# Run after deployment or before onboarding a new project.
+#
+# Usage:
+#   bash scripts/validate-e2e-cloud.sh --profile $AWS_PROFILE
+#   bash scripts/validate-e2e-cloud.sh  # uses AWS_PROFILE env var
+#
+# Exit codes:
+#   0 — All checks passed
+#   1 — One or more checks failed
 # ═══════════════════════════════════════════════════════════════════
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+set -uo pipefail
 
-PASS=0
-FAIL=0
-WARN=0
+# ─── Configuration ───────────────────────────────────────────────
+REGION="${AWS_REGION:-us-east-1}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
+CLUSTER_NAME="fde-${ENVIRONMENT}-cluster"
+ECR_REPO_STRANDS="fde-${ENVIRONMENT}-strands-agent"
+ECR_REPO_ONBOARDING="fde-${ENVIRONMENT}-onboarding-agent"
+EVENT_BUS="fde-${ENVIRONMENT}-factory-bus"
+SECRETS_ID="fde-${ENVIRONMENT}/alm-tokens"
+BEDROCK_MODEL="us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
-log_ok()   { echo -e "  ${GREEN}✓${NC} $1"; PASS=$((PASS + 1)); }
-log_fail() { echo -e "  ${RED}✗${NC} $1"; FAIL=$((FAIL + 1)); }
-log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; WARN=$((WARN + 1)); }
-log_head() { echo -e "\n${CYAN}── $1 ──${NC}"; }
-
-AWS_PROFILE_ARG=""
-if [ "${1:-}" = "--profile" ] && [ -n "${2:-}" ]; then
-    AWS_PROFILE_ARG="$2"
-elif [ -f "$HOME/.kiro/fde-manifest.json" ]; then
-    AWS_PROFILE_ARG=$(python3 -c "import json; print(json.load(open('$HOME/.kiro/fde-manifest.json')).get('credentials',{}).get('aws_profile',''))" 2>/dev/null || echo "")
-fi
-
-aws_cmd() {
-    if [ -n "$AWS_PROFILE_ARG" ]; then aws --profile "$AWS_PROFILE_ARG" "$@"; else aws "$@"; fi
-}
-
-TF_DIR="$SCRIPT_DIR/infra/terraform"
-AWS_REGION="us-east-1"
-
-read_tf_output() {
-    AWS_PROFILE="${AWS_PROFILE_ARG}" terraform -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || echo ""
-}
-
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-echo " Forward Deployed Engineer — E2E Cloud Validation"
-echo " Date: $(date '+%Y-%m-%d %H:%M:%S')"
-[ -n "$AWS_PROFILE_ARG" ] && echo " Profile: $AWS_PROFILE_ARG"
-echo "═══════════════════════════════════════════════════════════"
-
-log_head "1. Terraform Outputs"
-ECR_URL=$(read_tf_output ecr_repository_url)
-[ -n "$ECR_URL" ] && log_ok "ECR_URL = $ECR_URL" || log_fail "ECR_URL is empty"
-CLUSTER_NAME=$(read_tf_output ecs_cluster_name)
-BUCKET=$(read_tf_output artifacts_bucket)
-SECRETS_ARN=$(read_tf_output secrets_arn)
-WEBHOOK_URL=$(read_tf_output webhook_api_url)
-EVENT_BUS=$(read_tf_output event_bus_name)
-VPC_ID=$(read_tf_output vpc_id)
-
-for var_name in CLUSTER_NAME BUCKET SECRETS_ARN WEBHOOK_URL EVENT_BUS VPC_ID; do
-    val="${!var_name}"
-    [ -n "$val" ] && log_ok "$var_name = $val" || log_fail "$var_name is empty"
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --profile)
+      export AWS_PROFILE="$2"
+      shift 2
+      ;;
+    --region)
+      REGION="$2"
+      shift 2
+      ;;
+    --environment)
+      ENVIRONMENT="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: bash scripts/validate-e2e-cloud.sh [--profile PROFILE] [--region REGION] [--environment ENV]"
+      exit 1
+      ;;
+  esac
 done
 
-log_head "2. API Gateway Webhooks"
-if [ -n "$WEBHOOK_URL" ]; then
-    for platform in github gitlab asana; do
-        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${WEBHOOK_URL}/webhook/${platform}" -H "Content-Type: application/json" -d '{"test":true}' 2>/dev/null || echo "000")
-        [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "204" ] && log_ok "POST /webhook/$platform → $HTTP_CODE" || log_warn "POST /webhook/$platform → $HTTP_CODE"
-    done
+# ─── Helpers ─────────────────────────────────────────────────────
+PASS=0
+FAIL=0
+WARNINGS=0
+
+check_pass() {
+  echo "  ✅ $1"
+  PASS=$((PASS + 1))
+}
+
+check_fail() {
+  echo "  ❌ $1"
+  echo "     → Fix: $2"
+  FAIL=$((FAIL + 1))
+}
+
+check_warn() {
+  echo "  ⚠️  $1"
+  WARNINGS=$((WARNINGS + 1))
+}
+
+section() {
+  echo ""
+  echo "━━━ $1 ━━━"
+}
+
+# ─── Pre-flight: Verify AWS credentials ─────────────────────────
+section "AWS Credentials"
+
+IDENTITY=$(aws sts get-caller-identity --region "$REGION" --output json 2>&1) || {
+  echo "  ❌ AWS credentials not valid"
+  echo "     → Fix: aws sso login --profile ${AWS_PROFILE:-your-profile}"
+  exit 1
+}
+
+ACCOUNT=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+check_pass "Authenticated as: $ARN (account: $ACCOUNT)"
+
+# ─── Check 1: ECS Cluster ───────────────────────────────────────
+section "ECS Cluster"
+
+CLUSTER_STATUS=$(aws ecs describe-clusters \
+  --clusters "$CLUSTER_NAME" \
+  --region "$REGION" \
+  --query 'clusters[0].status' \
+  --output text 2>/dev/null) || CLUSTER_STATUS="NOT_FOUND"
+
+if [[ "$CLUSTER_STATUS" == "ACTIVE" ]]; then
+  check_pass "Cluster '$CLUSTER_NAME' is ACTIVE"
+else
+  check_fail "Cluster '$CLUSTER_NAME' status: $CLUSTER_STATUS" \
+    "terraform apply -var-file=factory.tfvars"
 fi
 
-log_head "3. EventBridge"
-if [ -n "$EVENT_BUS" ]; then
-    BUS_CHECK=$(aws_cmd events describe-event-bus --name "$EVENT_BUS" --region "$AWS_REGION" --query "Name" --output text 2>/dev/null || echo "")
-    [ "$BUS_CHECK" = "$EVENT_BUS" ] && log_ok "Event bus: $EVENT_BUS" || log_fail "Event bus not found"
-    RULE_COUNT=$(aws_cmd events list-rules --event-bus-name "$EVENT_BUS" --region "$AWS_REGION" --query "length(Rules)" --output text 2>/dev/null || echo "0")
-    [ "$RULE_COUNT" -ge 3 ] && log_ok "Rules: $RULE_COUNT" || log_fail "Rules: $RULE_COUNT (expected 3)"
-    PUT_RESULT=$(aws_cmd events put-events --region "$AWS_REGION" --entries "[{\"Source\":\"fde.e2e.test\",\"DetailType\":\"validation\",\"Detail\":\"{\\\"test\\\":true}\",\"EventBusName\":\"$EVENT_BUS\"}]" --query "FailedEntryCount" --output text 2>/dev/null || echo "1")
-    [ "$PUT_RESULT" = "0" ] && log_ok "Test event sent successfully" || log_fail "Failed to send test event"
+# ─── Check 2: ECR Images ────────────────────────────────────────
+section "ECR Images"
+
+for REPO in "$ECR_REPO_STRANDS" "$ECR_REPO_ONBOARDING"; do
+  IMAGE_PUSHED=$(aws ecr describe-images \
+    --repository-name "$REPO" \
+    --region "$REGION" \
+    --query 'imageDetails | sort_by(@, &imagePushedAt) | [-1].imagePushedAt' \
+    --output text 2>/dev/null) || IMAGE_PUSHED="NOT_FOUND"
+
+  if [[ "$IMAGE_PUSHED" == "NOT_FOUND" || "$IMAGE_PUSHED" == "None" ]]; then
+    check_fail "ECR repo '$REPO' has no images" \
+      "docker build + docker push to $REPO"
+  else
+    check_pass "ECR '$REPO' has image (pushed: $IMAGE_PUSHED)"
+  fi
+done
+
+# ─── Check 3: EventBridge Rules ─────────────────────────────────
+section "EventBridge Rules"
+
+RULES=$(aws events list-rules \
+  --event-bus-name "$EVENT_BUS" \
+  --region "$REGION" \
+  --query 'Rules[].{Name:Name,State:State}' \
+  --output json 2>/dev/null) || RULES="[]"
+
+RULE_COUNT=$(echo "$RULES" | python3 -c "import sys,json; rules=json.load(sys.stdin); print(len(rules))")
+ENABLED_COUNT=$(echo "$RULES" | python3 -c "import sys,json; rules=json.load(sys.stdin); print(sum(1 for r in rules if r['State']=='ENABLED'))")
+
+if [[ "$RULE_COUNT" -ge 4 ]]; then
+  check_pass "EventBridge bus '$EVENT_BUS' has $RULE_COUNT rules ($ENABLED_COUNT enabled)"
+else
+  check_fail "EventBridge bus '$EVENT_BUS' has only $RULE_COUNT rules (expected ≥4)" \
+    "terraform apply — missing onboarding or ALM rules"
 fi
 
-log_head "4. S3 Bucket"
-if [ -n "$BUCKET" ]; then
-    TEST_KEY="e2e-test/validation-$(date +%s).txt"
-    if echo "e2e-validation-test" | aws_cmd s3 cp - "s3://$BUCKET/$TEST_KEY" --region "$AWS_REGION" >/dev/null 2>&1; then
-        log_ok "S3 write OK"
-        aws_cmd s3api head-object --bucket "$BUCKET" --key "$TEST_KEY" --region "$AWS_REGION" >/dev/null 2>&1 && log_ok "S3 read OK" || log_fail "S3 read failed"
-        aws_cmd s3 rm "s3://$BUCKET/$TEST_KEY" --region "$AWS_REGION" >/dev/null 2>&1
-        log_ok "S3 cleanup OK"
-    else
-        log_fail "S3 write failed"
-    fi
+# Check specifically for onboarding rule
+ONBOARDING_RULE=$(echo "$RULES" | python3 -c "
+import sys,json
+rules=json.load(sys.stdin)
+onboard = [r for r in rules if 'onboarding' in r['Name']]
+print('ENABLED' if onboard and onboard[0]['State']=='ENABLED' else 'MISSING')
+")
+
+if [[ "$ONBOARDING_RULE" == "ENABLED" ]]; then
+  check_pass "Onboarding trigger rule is ENABLED"
+else
+  check_fail "Onboarding trigger rule not found or disabled" \
+    "terraform apply — onboarding.tf may not have been applied"
 fi
 
-log_head "5. Secrets Manager"
-if [ -n "$SECRETS_ARN" ]; then
-    SECRET_CHECK=$(aws_cmd secretsmanager describe-secret --secret-id "$SECRETS_ARN" --region "$AWS_REGION" --query "Name" --output text 2>/dev/null || echo "")
-    [ -n "$SECRET_CHECK" ] && log_ok "Secret: $SECRET_CHECK" || log_fail "Secret not found"
+# ─── Check 4: Bedrock Model Access ──────────────────────────────
+section "Bedrock Model Access"
+
+echo '{"anthropic_version":"bedrock-2023-05-31","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}' > /tmp/bedrock-health-body.json
+BEDROCK_RESULT=$(aws bedrock-runtime invoke-model \
+  --model-id "$BEDROCK_MODEL" \
+  --region "$REGION" \
+  --body fileb:///tmp/bedrock-health-body.json \
+  --content-type "application/json" \
+  /tmp/bedrock-health-check.json 2>&1) && BEDROCK_OK=true || BEDROCK_OK=false
+
+if $BEDROCK_OK; then
+  check_pass "Bedrock model '$BEDROCK_MODEL' responds (Haiku accessible)"
+  rm -f /tmp/bedrock-health-check.json
+else
+  if echo "$BEDROCK_RESULT" | grep -q "AccessDeniedException"; then
+    check_fail "Bedrock model access denied" \
+      "AWS Console → Bedrock → Model access → Enable Claude 3 Haiku"
+  else
+    check_fail "Bedrock model invocation failed" \
+      "Check IAM permissions and model availability in $REGION"
+  fi
 fi
 
-log_head "6. ECR Repository"
-if [ -n "$ECR_URL" ]; then
-    REPO_NAME=$(echo "$ECR_URL" | cut -d/ -f2)
-    REPO_CHECK=$(aws_cmd ecr describe-repositories --repository-names "$REPO_NAME" --region "$AWS_REGION" --query "repositories[0].repositoryUri" --output text 2>/dev/null || echo "")
-    [ -n "$REPO_CHECK" ] && log_ok "ECR repo: $REPO_NAME" || log_fail "ECR repo not found"
-    IMAGE_COUNT=$(aws_cmd ecr list-images --repository-name "$REPO_NAME" --region "$AWS_REGION" --query "length(imageIds)" --output text 2>/dev/null || echo "0")
-    [ "$IMAGE_COUNT" -gt 0 ] && log_ok "ECR images: $IMAGE_COUNT" || log_warn "ECR empty — build and push Docker image"
+# ─── Check 5: Secrets Manager ───────────────────────────────────
+section "Secrets Manager"
+
+SECRET_VALUE=$(aws secretsmanager get-secret-value \
+  --secret-id "$SECRETS_ID" \
+  --region "$REGION" \
+  --query 'SecretString' \
+  --output text 2>/dev/null) || SECRET_VALUE="NOT_FOUND"
+
+if [[ "$SECRET_VALUE" == "NOT_FOUND" ]]; then
+  check_fail "Secret '$SECRETS_ID' not found" \
+    "aws secretsmanager create-secret --name $SECRETS_ID --secret-string '{\"github_pat\":\"...\"}'"
+else
+  # Verify it has the expected keys (without printing values)
+  HAS_GITHUB=$(echo "$SECRET_VALUE" | python3 -c "
+import sys,json
+try:
+  s=json.load(sys.stdin)
+  print('YES' if s.get('github_pat') else 'EMPTY')
+except: print('INVALID')
+")
+  if [[ "$HAS_GITHUB" == "YES" ]]; then
+    check_pass "Secret '$SECRETS_ID' exists with github_pat configured"
+  elif [[ "$HAS_GITHUB" == "EMPTY" ]]; then
+    check_warn "Secret '$SECRETS_ID' exists but github_pat is empty"
+  else
+    check_fail "Secret '$SECRETS_ID' has invalid JSON format" \
+      "Update secret with valid JSON: {\"github_pat\":\"ghp_...\",\"gitlab_pat\":\"\",\"bitbucket_pat\":\"\"}"
+  fi
 fi
 
-log_head "7. ECS Cluster"
-if [ -n "$CLUSTER_NAME" ]; then
-    CLUSTER_STATUS=$(aws_cmd ecs describe-clusters --clusters "$CLUSTER_NAME" --region "$AWS_REGION" --query "clusters[0].status" --output text 2>/dev/null || echo "")
-    [ "$CLUSTER_STATUS" = "ACTIVE" ] && log_ok "ECS cluster ACTIVE" || log_fail "ECS cluster: $CLUSTER_STATUS"
-    TASK_DEF=$(aws_cmd ecs list-task-definitions --family-prefix "fde-dev-strands-agent" --region "$AWS_REGION" --query "taskDefinitionArns[-1]" --output text 2>/dev/null || echo "")
-    [ -n "$TASK_DEF" ] && [ "$TASK_DEF" != "None" ] && log_ok "Task def: $TASK_DEF" || log_fail "No task definition"
+# ─── Check 6: S3 Artifacts Bucket ───────────────────────────────
+section "S3 Artifacts Bucket"
+
+BUCKET_NAME="fde-${ENVIRONMENT}-artifacts-${ACCOUNT}"
+aws s3api head-bucket --bucket "$BUCKET_NAME" --region "$REGION" 2>/dev/null && BUCKET_OK=true || BUCKET_OK=false
+
+if $BUCKET_OK; then
+  check_pass "S3 bucket '$BUCKET_NAME' is accessible"
+else
+  check_fail "S3 bucket '$BUCKET_NAME' not accessible" \
+    "terraform apply — bucket may not exist or IAM lacks access"
 fi
 
+# ─── Check 7: API Gateway Webhook ───────────────────────────────
+section "API Gateway Webhook"
+
+API_URL=$(aws apigatewayv2 get-apis \
+  --region "$REGION" \
+  --query "Items[?contains(Name,'webhook')].ApiEndpoint | [0]" \
+  --output text 2>/dev/null) || API_URL=""
+
+if [[ -n "$API_URL" && "$API_URL" != "None" ]]; then
+  check_pass "API Gateway webhook endpoint: $API_URL"
+
+  # Test connectivity
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "$API_URL/webhook/github" \
+    -H "Content-Type: application/json" \
+    -d '{"test":"health-check"}' 2>/dev/null) || HTTP_CODE="000"
+
+  if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "400" ]]; then
+    check_pass "Webhook endpoint responds (HTTP $HTTP_CODE)"
+  elif [[ "$HTTP_CODE" == "403" ]]; then
+    check_fail "Webhook returns 403 Forbidden" \
+      "Check API Gateway authorization settings"
+  else
+    check_warn "Webhook returned HTTP $HTTP_CODE (expected 200 or 400)"
+  fi
+else
+  check_fail "API Gateway webhook not found" \
+    "terraform apply — apigateway.tf may not have been applied"
+fi
+
+# ─── Summary ─────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo " E2E Summary: Passed=$PASS | Failed=$FAIL | Warnings=$WARN"
+echo "  RESULTS: $PASS passed, $FAIL failed, $WARNINGS warnings"
 echo "═══════════════════════════════════════════════════════════"
-[ "$FAIL" -eq 0 ] && echo -e " ${GREEN}ALL CLOUD RESOURCES VALIDATED.${NC}" || echo -e " ${YELLOW}$FAIL issues found.${NC}"
-echo ""
+
+if [[ $FAIL -gt 0 ]]; then
+  echo ""
+  echo "  ⛔ Factory is NOT ready for operation. Fix the failures above."
+  exit 1
+else
+  echo ""
+  echo "  🟢 Factory is operational. Ready to onboard projects."
+  exit 0
+fi

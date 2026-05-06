@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="factory-api-url" content="">
+<title>Code Factory — Agentic Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050507;--surface:rgba(15,15,20,0.85);--border:rgba(255,255,255,0.06);--border-hover:rgba(99,102,241,0.4);--accent:#6366f1;--accent-glow:rgba(99,102,241,0.3);--orange:#FF9900;--text:#e2e8f0;--text-muted:#64748b;--text-dim:#475569;--success:#10b981;--warning:#f59e0b;--error:#ef4444;--running:#8b5cf6;--font:'Inter',-apple-system,sans-serif;--mono:'Fira Code','SF Mono',monospace;--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.cf-header{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0}
+.cf-header__brand{display:flex;align-items:center;gap:12px}
+.cf-header__dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
+.cf-header__title{font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.cf-header__title span{color:var(--text-muted);font-weight:300}
+.cf-header__stats{display:flex;gap:24px;font-family:var(--mono);font-size:10px;color:var(--text-muted)}
+.cf-header__stats .val{font-weight:500}
+.cf-header__stats .val--active{color:var(--accent)}
+.cf-header__stats .val--success{color:var(--success)}
+.cf-header__stats .val--warn{color:var(--warning)}
+.cf-header__logo{flex-shrink:0;height:36px;width:auto;object-fit:contain;border-radius:6px}
+.cf-header__sep{width:1px;height:24px;background:rgba(255,255,255,0.15);margin:0 4px}
+.cf-header__theme{background:transparent;border:1px solid var(--border);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;line-height:1}
+.cf-header__theme:hover{border-color:var(--border-hover)}
+
+/* Light theme */
+[data-theme="light"]{--bg:#f8fafc;--surface:rgba(255,255,255,0.95);--border:rgba(0,0,0,0.08);--border-hover:rgba(99,102,241,0.4);--text:#1e293b;--text-muted:#64748b;--text-dim:#94a3b8}
+[data-theme="light"] .cf-header{background:#232F3E;border-bottom-color:#FF9900}
+[data-theme="light"] .cf-header__sep{background:rgba(255,255,255,0.2)}
+[data-theme="light"] .cf-agents,[data-theme="light"] .cf-flow,[data-theme="light"] .cf-log{background:var(--surface)}
+[data-theme="light"] .cf-log__terminal{background:rgba(0,0,0,0.03)}
+[data-theme="light"] .cf-agent-card{background:rgba(0,0,0,0.02);border-color:var(--border)}
+[data-theme="light"] .cf-flow__dot{background:var(--bg)}
+[data-theme="light"] .cf-flow__branch{background:rgba(0,0,0,0.04)}
+[data-theme="light"] .cf-agent-card__bar{background:rgba(0,0,0,0.06)}
+.cf-body{display:flex;flex:1;gap:1px;overflow:hidden}
+.cf-agents{width:300px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.cf-agents__header{padding:16px 16px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
+.cf-agents__list{flex:1;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.cf-agent-card{padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius);transition:border-color 0.2s}
+.cf-agent-card:hover{border-color:var(--border-hover)}
+.cf-agent-card__top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cf-agent-card__name{font-size:11px;font-weight:600}
+.cf-agent-card__status{font-size:8px;padding:2px 6px;border-radius:4px;font-weight:500;text-transform:uppercase}
+.cf-agent-card__status--running{background:rgba(139,92,246,0.15);color:var(--running)}
+.cf-agent-card__status--idle{background:rgba(100,116,139,0.15);color:var(--text-muted)}
+.cf-agent-card__status--done{background:rgba(16,185,129,0.15);color:var(--success)}
+.cf-agent-card__bar{width:100%;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.cf-agent-card__bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.5s}
+.cf-agent-card__thought{font-family:var(--mono);font-size:10px;color:var(--text-dim);font-style:italic;line-height:1.4}
+.cf-flow{flex:1;background:var(--surface);position:relative;display:flex;flex-direction:column;overflow:hidden}
+.cf-flow__header{padding:16px 24px 12px;display:flex;justify-content:space-between;align-items:center}
+.cf-flow__title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
+.cf-flow__btn{font-size:9px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-muted);cursor:pointer;font-family:var(--mono)}
+.cf-flow__btn:hover{border-color:var(--border-hover);color:var(--text)}
+.cf-flow__list{flex:1;overflow-y:auto;padding:0 24px 24px}
+.cf-flow__node{display:flex;align-items:flex-start;gap:16px;padding:16px 0;border-bottom:1px solid var(--border);animation:fadeIn 0.4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+.cf-flow__dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--accent);background:var(--bg);margin-top:4px;flex-shrink:0;transition:box-shadow 0.3s}
+.cf-flow__dot:hover{box-shadow:0 0 12px var(--accent-glow)}
+.cf-flow__dot--done{background:var(--success);border-color:var(--success)}
+.cf-flow__dot--fail{background:var(--error);border-color:var(--error)}
+.cf-flow__info{flex:1}
+.cf-flow__branch{font-size:9px;font-weight:600;padding:2px 6px;background:rgba(255,255,255,0.05);border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;display:inline-block;margin-bottom:4px}
+.cf-flow__task{font-size:13px;color:var(--text);margin-bottom:4px}
+.cf-flow__meta{font-family:var(--mono);font-size:10px;color:var(--text-dim);display:flex;gap:12px}
+.cf-flow__meta .verified{color:rgba(16,185,129,0.7)}
+.cf-log{width:360px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column}
+.cf-log__header{padding:16px 16px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
+.cf-log__terminal{flex:1;background:rgba(0,0,0,0.4);margin:0 12px 12px;border-radius:var(--radius);padding:12px;font-family:var(--mono);font-size:11px;overflow-y:auto;line-height:1.6}
+.cf-log__entry{margin-bottom:4px;opacity:0;animation:logFade 0.3s forwards}
+@keyframes logFade{to{opacity:1}}
+.cf-log__entry--system{color:var(--success)}
+.cf-log__entry--agent{color:var(--accent)}
+.cf-log__entry--warn{color:var(--warning)}
+.cf-log__entry--info{color:var(--text-dim)}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+</style>
+</head>
+<body>
+<header class="cf-header">
+  <div class="cf-header__brand">
+    <img src="img/proserve-logo.png" alt="AWS Professional Services" class="cf-header__logo" height="36">
+    <div class="cf-header__sep"></div>
+    <div class="cf-header__dot" id="health-dot"></div>
+    <div class="cf-header__title">Code_Factory <span>/ Pipeline-Monitor</span></div>
+  </div>
+  <div class="cf-header__stats">
+    <div>ACTIVE: <span class="val val--active" id="s-active">0</span></div>
+    <div>COMPLETED: <span class="val val--success" id="s-done">0</span></div>
+    <div>FAILED: <span class="val val--warn" id="s-fail">0</span></div>
+    <div>AVG: <span class="val" id="s-avg">—</span></div>
+    <button class="cf-header__theme" id="btn-theme" onclick="toggleTheme()" aria-label="Toggle theme">☀️</button>
+  </div>
+</header>
+<div class="cf-body">
+  <aside class="cf-agents">
+    <div class="cf-agents__header">Autonomous Units</div>
+    <div class="cf-agents__list" id="agent-list"></div>
+  </aside>
+  <main class="cf-flow">
+    <div class="cf-flow__header">
+      <div class="cf-flow__title">Pipeline Activity</div>
+      <button class="cf-flow__btn" onclick="refreshData()">REFRESH</button>
+    </div>
+    <div class="cf-flow__list" id="flow-list"></div>
+  </main>
+  <aside class="cf-log">
+    <div class="cf-log__header">Chain of Thought</div>
+    <div class="cf-log__terminal" id="terminal">
+      <div class="cf-log__entry cf-log__entry--system">[SYSTEM] Portal initialized. Connecting...</div>
+    </div>
+  </aside>
+</div>
+<script>
+const API=document.querySelector('meta[name="factory-api-url"]')?.content||'';
+const REFRESH=15000;
+async function refreshData(){
+  if(!API){addLog('SYSTEM','No API URL. Deploy with: bash scripts/deploy-dashboard.sh','warn');return}
+  try{
+    const r=await fetch(API+'/status/tasks',{headers:{Accept:'application/json'}});
+    if(!r.ok){addLog('SYSTEM',`API ${r.status}`,'warn');return}
+    const d=await r.json();
+    renderStats(d.metrics);renderAgents(d.tasks);renderFlow(d.tasks);
+    addLog('SYNC',`${d.tasks.length} tasks loaded`,'system');
+    document.getElementById('health-dot').style.background='var(--success)';
+    document.getElementById('health-dot').style.boxShadow='0 0 10px rgba(16,185,129,0.4)';
+  }catch(e){addLog('SYSTEM','Connection failed','warn');document.getElementById('health-dot').style.background='var(--error)'}
+}
+function renderStats(m){if(!m)return;document.getElementById('s-active').textContent=m.active||0;document.getElementById('s-done').textContent=m.completed_24h||0;document.getElementById('s-fail').textContent=m.failed_24h||0;document.getElementById('s-avg').textContent=fmt(m.avg_duration_ms)}
+function renderAgents(tasks){
+  const c=document.getElementById('agent-list');
+  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:11px;padding:12px">No active agents</div>';return}
+  c.innerHTML=tasks.slice(0,6).map(t=>{
+    const st=t.status==='running'?'running':t.status==='completed'?'done':'idle';
+    const pct=t.status==='running'?'66%':t.status==='completed'?'100%':'0%';
+    return`<div class="cf-agent-card"><div class="cf-agent-card__top"><span class="cf-agent-card__name">${esc((t.title||t.task_id).substring(0,28))}</span><span class="cf-agent-card__status cf-agent-card__status--${st}">${t.status}</span></div><div class="cf-agent-card__bar"><div class="cf-agent-card__bar-fill" style="width:${pct}"></div></div><div class="cf-agent-card__thought">"${t.current_stage||'awaiting dispatch'}..."</div></div>`
+  }).join('')
+}
+function renderFlow(tasks){
+  const c=document.getElementById('flow-list');
+  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:24px;text-align:center">No pipeline activity in the last 24h</div>';return}
+  c.innerHTML=tasks.map(t=>{
+    const dc=t.status==='completed'?'cf-flow__dot--done':t.status==='failed'?'cf-flow__dot--fail':'';
+    return`<div class="cf-flow__node"><div class="cf-flow__dot ${dc}"></div><div class="cf-flow__info"><span class="cf-flow__branch">${esc(t.repo||'direct')}</span><div class="cf-flow__task">${esc(t.title||t.task_id)}</div><div class="cf-flow__meta"><span>stage: ${t.current_stage||'—'}</span><span>${fmt(t.duration_ms)}</span>${t.status==='completed'?'<span class="verified">✓ Verified</span>':''}</div></div></div>`
+  }).join('')
+}
+function addLog(a,m,type='info'){const t=document.getElementById('terminal');const e=document.createElement('div');e.className=`cf-log__entry cf-log__entry--${type}`;e.textContent=`[${a}] ${m}`;t.appendChild(e);t.scrollTop=t.scrollHeight;if(t.children.length>100)t.removeChild(t.firstChild)}
+function fmt(ms){if(!ms)return'—';if(ms<1000)return ms+'ms';const s=ms/1000;return s<60?s.toFixed(1)+'s':(s/60).toFixed(1)+'min'}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+function toggleTheme(){
+  const html=document.documentElement;
+  const current=html.getAttribute('data-theme');
+  const next=current==='light'?'dark':'light';
+  html.setAttribute('data-theme',next);
+  document.getElementById('btn-theme').textContent=next==='light'?'🌙':'☀️';
+  localStorage.setItem('cf-theme',next);
+}
+(function(){const t=localStorage.getItem('cf-theme');if(t){document.documentElement.setAttribute('data-theme',t);if(document.getElementById('btn-theme'))document.getElementById('btn-theme').textContent=t==='light'?'🌙':'☀️'}})();
+
+refreshData();setInterval(refreshData,REFRESH);
+</script>
+</body>
+</html>
