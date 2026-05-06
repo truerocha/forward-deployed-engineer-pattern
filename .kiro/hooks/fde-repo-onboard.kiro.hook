@@ -1,0 +1,12 @@
+{
+  "name": "FDE Repo Onboard",
+  "version": "1.0.0",
+  "description": "Triggers the Repo Onboarding Agent to scan the current workspace, build a SQLite catalog of the codebase structure, and generate a project-specific FDE steering file for human approval.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run the Repo Onboarding Agent in local mode. Execute the onboarding pipeline by importing and calling `run_pipeline()` from `infra/docker/agents/onboarding/pipeline.py` with no repo_url (local mode). This will: 1) Scan the current workspace with Magika for file type detection, 2) Extract AST with tree-sitter for dependency graphs, 3) Detect project conventions, 4) Infer pipeline chain and module boundaries via Claude Haiku, 5) Write a SQLite catalog to ./catalog.db, 6) Generate a steering draft at .kiro/steering/fde-draft.md. After completion, report the results summary including files scanned, modules found, conventions detected, and tech stack tags. The Staff Engineer should review fde-draft.md and rename it to fde.md to activate."
+  }
+}

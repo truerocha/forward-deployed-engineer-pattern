@@ -58,6 +58,14 @@ The factory is organized into **5 modular planes**, each with its own diagram an
 
 > Full single-diagram view: [docs/architecture/autonomous-code-factory.png](docs/architecture/autonomous-code-factory.png)
 
+### AWS Reference Architecture
+
+![Reference Architecture](docs/architecture/reference-architecture.png)
+
+The complete AWS reference architecture shows all cloud services, data flows, and integration points in a single view. It covers: API Gateway (webhook ingestion), EventBridge (event routing), ECS Fargate (headless agent execution), Amazon Bedrock (LLM inference), DynamoDB (state management), S3 (artifact storage), Lambda (DAG fan-out + dead-letter), CloudWatch/SNS/SQS (observability), CloudFront (dashboard CDN), and Secrets Manager (credential isolation).
+
+> Generate: `python3 scripts/generate_reference_architecture.py`
+
 **Cloud orchestration (optional):** When deployed to AWS, ALM webhooks flow through API Gateway → EventBridge → ECS Fargate, where a Strands agent container runs the FDE protocol headless using Bedrock for inference. Results are written to S3 and ALM status is updated automatically. See [Cloud Orchestration Flow](docs/flows/13-cloud-orchestration.md).
 
 Each workspace is a **production line** for a specific codebase. The Staff Engineer manages multiple lines simultaneously, routing work and approving outcomes.

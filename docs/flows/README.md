@@ -2,6 +2,9 @@
 
 Each Mermaid diagram represents the usability flow of a specific factory feature.
 
+> **Reference Architecture**: See [docs/architecture/reference-architecture.png](../architecture/reference-architecture.png) for the full AWS service map.
+> **Plane Diagrams**: See [docs/architecture/planes/](../architecture/planes/) for per-plane detail views.
+
 ## Index
 
 1. [Work Intake Flow](01-work-intake.md)
@@ -17,3 +20,4 @@ Each Mermaid diagram represents the usability flow of a specific factory feature
 11. [Multi-Platform Work Intake Flow](11-multi-platform-intake.md)
 12. [Staff Engineer Onboarding Flow](12-staff-engineer-onboarding.md)
 13. [Cloud Orchestration Flow](13-cloud-orchestration.md)
+14. [Repo Onboarding Flow (Phase 0)](14-repo-onboarding.md)

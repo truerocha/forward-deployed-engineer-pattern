@@ -8,6 +8,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-06
 
+### Added — Repo Onboarding Agent (Phase 0, ADR-015)
+- `infra/docker/agents/onboarding/` — Phase 0 codebase reasoning brain (13 modules). Sequential pipeline: Trigger Handler → Repo Cloner → File Scanner (Magika) → AST Extractor (tree-sitter) → Convention Detector → Pattern Inferrer (Claude Haiku) → Catalog Writer (SQLite) → Steering Generator → S3 Persister.
+- `infra/docker/agents/onboarding/pipeline.py` — Orchestrates all 9 stages sequentially with observability, failure reporting, and incremental re-scan support.
+- `infra/docker/agents/onboarding/trigger_handler.py` — Event reception, input validation (URL allowlist, UUID format), mode detection (cloud vs local), incremental skip check.
+- `infra/docker/agents/onboarding/repo_cloner.py` — Git clone with ADR-014 credential isolation (fetch-use-discard via GIT_ASKPASS). Supports GitHub, GitLab, Bitbucket.
+- `infra/docker/agents/onboarding/file_scanner.py` — Magika-based content classification for every file. Detects generated code, skips binaries >1MB, respects skip directories.
+- `infra/docker/agents/onboarding/ast_extractor.py` — tree-sitter AST parsing for Python, JS/TS, Go, Java, Rust, HCL. Extracts module signatures, import graphs, dependency edges.
+- `infra/docker/agents/onboarding/convention_detector.py` — Detects 60+ project conventions (package managers, test frameworks, linters, CI/CD, IaC, containers).
+- `infra/docker/agents/onboarding/pattern_inferrer.py` — Claude Haiku (Bedrock) inference for pipeline chain, module boundaries, tech stack, and engineering level patterns. Cost-capped at $0.01/run.
+- `infra/docker/agents/onboarding/catalog_writer.py` — SQLite persistence (9 tables per REQ-4.1) + catalog query interface for FDE intake integration (get_tech_stack, get_suggested_level, get_module_context).
+- `infra/docker/agents/onboarding/steering_generator.py` — Generates project-specific `.kiro/steering/fde.md` from catalog data with unified diff on re-scan.
+- `infra/docker/agents/onboarding/s3_persister.py` — Uploads catalog + steering draft + diff to S3 (cloud mode only).
+- `infra/docker/agents/onboarding/observability.py` — Structured JSON logging, CloudWatch metrics (fde/onboarding namespace), failure report generation.
+- `infra/docker/Dockerfile.onboarding-agent` — Python 3.12 slim + gh CLI + Magika + tree-sitter grammars.
+- `infra/docker/requirements-onboarding.txt` — magika>=0.5.0, tree-sitter>=0.21.0, tree-sitter-languages>=1.10.0, networkx>=3.2, boto3>=1.35.0.
+- `infra/terraform/onboarding.tf` — ECS task definition (1 vCPU / 2GB), IAM role (least privilege: S3, Secrets, Bedrock, CloudWatch), EventBridge rule, CloudWatch alarms (stage P99 latency, total duration budget).
+- `.kiro/hooks/fde-repo-onboard.kiro.hook` — userTriggered hook for local mode onboarding.
+- `docs/adr/ADR-015-repo-onboarding-phase-zero.md` — Architecture decision: hybrid deterministic scan + lightweight LLM.
+- `docs/flows/14-repo-onboarding.md` — Phase 0 flow diagram with Mermaid (9 stages + incremental re-scan).
+
+### Added — Ephemeral Catalog for Regulated Environments (ADR-016, SEC 7-10)
+- `docs/adr/ADR-016-ephemeral-catalog-data-residency.md` — Data residency architecture: three persistence modes (cloud/local/ephemeral), customer-controlled encryption via KMS, TTL-based auto-destruction, audit sidecar without data exposure.
+
+### Added — Operational Tooling and Observability
+- `scripts/validate-e2e-cloud.sh` — Full infrastructure health check (11 checks). Single command validates factory readiness.
+- `scripts/deploy-dashboard.sh` — Automated dashboard deployment with config injection from terraform outputs.
+- `scripts/setup-fde-client.sh` — One-command FDE client setup for any project (hooks + ALM integration).
+- `scripts/setup-alm-integration.sh` — Platform-agnostic ALM setup (`--platform github|gitlab|asana`).
+- `scripts/bootstrap-fde-workspace.sh` — Installs minimal FDE hooks into any target workspace.
+- `infra/docker/agents/status_sync.py` — Posts structured progress comments to GitHub issues during pipeline execution.
+- `infra/dashboard/index.html` — Agentic UX dashboard (Cyber-Industrial theme, chain-of-thought log, light/dark mode, ProServe logo).
+- `infra/terraform/dashboard.tf` — Dashboard status Lambda + API Gateway route (`GET /status/tasks`).
+- `infra/terraform/dashboard-cdn.tf` — CloudFront distribution + OAC for dashboard static hosting.
+- `infra/terraform/lambda/dashboard_status/index.py` — Lambda reading DynamoDB task_queue for dashboard metrics.
+- `docs/guides/staff-engineer-post-deploy.md` — Complete post-deploy operations guide.
+- `docs/corrections-of-error-cloudfront-kms.md` — COE: CloudFront OAC + SSE-KMS access denied root cause and fix.
+
+### Changed — Bedrock Model (Legacy → Active)
+- Migrated from `anthropic.claude-3-haiku-20240307-v1:0` (LEGACY) to `us.anthropic.claude-haiku-4-5-20251001-v1:0` (ACTIVE inference profile).
+
+### Changed — Security Cleanup
+- Removed all hardcoded account IDs, endpoint URLs, and profile names from active code and docs.
+- Dashboard API URL injected at deploy time via `<meta>` tag.
+- Dockerfile: added non-root user, suppressed ONNX Runtime warning.
+
+### Infrastructure Deployed
+- 9 new resources added to existing stack (ECR onboarding repo, ECS task def, IAM role, EventBridge rule, CloudWatch alarms, dashboard Lambda, CloudFront distribution).
+- Docker images pushed: `fde-dev-onboarding-agent:latest`, `fde-dev-strands-agent:latest`.
+- Dashboard live via CloudFront. Status API responding at `/status/tasks`.
+
+### Changed — Dependencies (Repo Onboarding Agent)
+- `infra/docker/requirements.txt` — Added magika, tree-sitter, tree-sitter-languages, networkx to shared dependencies.
+
 ### Added — Dead-Letter Handler and Observability (ADR-014, OPS 6 + OPS 8)
 - `infra/terraform/lambda/dead_letter/index.py` — Dead-letter Lambda handler for permanently failed DAG fan-out invocations. Extracts failed task metadata from SQS messages, publishes structured alerts to SNS, marks tasks as `DEAD_LETTER` in DynamoDB for visibility.
 - `infra/terraform/observability.tf` — Full observability layer: SNS topic (`fde-dev-pipeline-alerts`), SQS dead-letter queue (`fde-dev-dag-fanout-dlq`), dead-letter Lambda with IAM role, SQS→Lambda event source mapping, 6 CloudWatch alarms (fan-out errors, dead-letter invocations, fan-out throttles, DynamoDB read/write throttles, fan-out duration approaching timeout).
