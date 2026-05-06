@@ -35,6 +35,7 @@ from .execution_plan import (
 from .registry import AgentRegistry, AgentDefinition
 from .router import AgentRouter, RoutingDecision
 from .scope_boundaries import check_scope
+from . import task_queue
 
 logger = logging.getLogger("fde.orchestrator")
 
@@ -185,6 +186,25 @@ class Orchestrator:
             plan = start_milestone(plan)
             plan = complete_milestone(plan, "Ship readiness validated")
             save_plan(plan, self._plans_dir)
+
+        # ── Step 10: DAG Resolution (ADR-014) ───────────────────
+        # Signal task completion to the task queue. This triggers
+        # _resolve_dependencies() which promotes dependent tasks to READY.
+        # The DynamoDB Stream + Lambda fan-out picks up READY transitions
+        # and starts new ECS tasks for parallel execution.
+        if result.get("status") == "completed":
+            try:
+                task_queue.complete_task(task_id, json.dumps(result, default=str))
+                logger.info("Task %s marked COMPLETED in queue (DAG resolution triggered)", task_id)
+            except Exception as e:
+                logger.warning("Task queue update failed (non-blocking): %s", e)
+        elif result.get("status") in ("partial", "error"):
+            try:
+                error_msg = result.get("pipeline", [{}])[-1].get("error", "Pipeline incomplete")
+                task_queue.fail_task(task_id, error_msg)
+                logger.info("Task %s marked FAILED in queue (dependents blocked)", task_id)
+            except Exception as e:
+                logger.warning("Task queue failure update failed (non-blocking): %s", e)
 
         return result
 

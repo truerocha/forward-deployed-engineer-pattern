@@ -8,6 +8,6 @@
   },
   "then": {
     "type": "askAgent",
-    "prompt": "FDE ALTERNATIVE EXPLORATION (L4)\n\nGenerate 2 distinct approaches for the current task.\n\nFor each:\n\n## Approach [A/B]: [Name]\n- Architecture: [design, modules, data flow]\n- Trade-offs: [gains vs losses]\n- Complexity: [estimated LOC, files, dependencies]\n- Risk: [what could go wrong]\n- Constraint alignment: [how it satisfies MUST/MUST NOT]\n\n## Recommendation\nWhich and why? What would change your mind?\n\nDo NOT implement. Present both. Human decides.\n\nOutput: [APPROACHES PRESENTED - AWAITING DECISION]"
+    "prompt": "FDE ALTERNATIVE EXPLORATION (L4)\n\nGenerate 2 distinct approaches for the current task.\n\nFor each:\n## Approach [A/B]: [Name]\n- Architecture: [design, modules, data flow]\n- Trade-offs: [gains vs losses]\n- Complexity: [estimated LOC, files, dependencies]\n- Risk: [what could go wrong]\n- Constraint alignment: [how it satisfies MUST/MUST NOT from spec]\n\nThen:\n## Recommendation\n- Which approach and why (tied to constraints)\n- What is sacrificed\n\nDo NOT implement. Wait for human to choose."
   }
 }

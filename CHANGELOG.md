@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased] — 2026-05-06
+
+### Added — Dead-Letter Handler and Observability (ADR-014, OPS 6 + OPS 8)
+- `infra/terraform/lambda/dead_letter/index.py` — Dead-letter Lambda handler for permanently failed DAG fan-out invocations. Extracts failed task metadata from SQS messages, publishes structured alerts to SNS, marks tasks as `DEAD_LETTER` in DynamoDB for visibility.
+- `infra/terraform/observability.tf` — Full observability layer: SNS topic (`fde-dev-pipeline-alerts`), SQS dead-letter queue (`fde-dev-dag-fanout-dlq`), dead-letter Lambda with IAM role, SQS→Lambda event source mapping, 6 CloudWatch alarms (fan-out errors, dead-letter invocations, fan-out throttles, DynamoDB read/write throttles, fan-out duration approaching timeout).
+- `docs/guides/deployment-setup.md` — AWS deployment prerequisites guide: SSO profile configuration, session authentication, Terraform variables, init/plan/apply commands, common errors and fixes, teardown, post-deploy steps.
+- CloudWatch alarms route to SNS topic for operator notification (email subscription supported).
+
+### Changed — DAG Fan-Out On-Failure Destination (ADR-014)
+- `infra/terraform/dag_fanout.tf` — Added `destination_config.on_failure` pointing to SQS dead-letter queue. Added `sqs:SendMessage` permission to fan-out Lambda IAM policy. Failed batches (after DynamoDB Stream's 3 retries) now route to SQS → dead-letter Lambda → SNS alert.
+
+### Changed — README Documentation Index
+- `README.md` — Added [AWS Deployment Setup](docs/guides/deployment-setup.md) and [Auth Setup](docs/guides/auth-setup.md) to the Documentation Index table.
+
+### Infrastructure Deployed
+- Stack applied to AWS account 785640717688 (us-east-1): 74 resources total (4 added, 3 changed, 1 destroyed in final apply).
+- SNS email subscription created for `rocand@amazon.com` (pending confirmation).
+
+---
+
 ## [Unreleased] — 2026-05-05
 
 ### Added — E2E Pipeline Data Travel Validation

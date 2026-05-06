@@ -3,19 +3,88 @@ FDE Agent Tools — Real tool implementations for Strands agents.
 
 Each tool is a @tool-decorated function that the Strands agent can call.
 Tools are grouped by category and registered with specific agents.
+
+Security: ALM tokens (GitHub, GitLab, Asana) are NEVER stored in environment
+variables. They are fetched from Secrets Manager at the moment of use inside
+each tool function, used for the HTTP request, and immediately discarded.
+This prevents the LLM from observing token values in its context window.
+See ADR-014 for the full rationale.
 """
 
 import json
+import logging
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 
 import boto3
 import requests
 from strands import tool
 
+logger = logging.getLogger("fde.tools")
+
 _s3 = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 _FACTORY_BUCKET = os.environ.get("FACTORY_BUCKET", "")
+
+# ─── Secret Isolation: Fetch-Use-Discard Pattern (ADR-014) ──────
+# Tokens are fetched from Secrets Manager at invocation time, cached
+# for 5 minutes to avoid repeated API calls within a pipeline run,
+# and NEVER exposed as env vars or returned to the agent.
+
+_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
+_TOKEN_CACHE_TTL = 300  # 5 minutes
+
+
+def _fetch_alm_token(token_name: str) -> str:
+    """Fetch an ALM token from Secrets Manager with short-lived cache.
+
+    Security contract:
+    - Token value is NEVER logged
+    - Token value is NEVER returned to the agent's message history
+    - Token is cached in-process for 5 minutes to reduce API calls
+    - Falls back to env var ONLY for local development (no Secrets Manager)
+
+    Args:
+        token_name: Key within the secret JSON (e.g., "GITHUB_TOKEN").
+
+    Returns:
+        The token value, or empty string if unavailable.
+    """
+    now = time.time()
+
+    # Check cache (TTL-based)
+    if token_name in _TOKEN_CACHE:
+        cached_value, cached_at = _TOKEN_CACHE[token_name]
+        if now - cached_at < _TOKEN_CACHE_TTL:
+            return cached_value
+
+    # Try Secrets Manager first
+    env = os.environ.get("ENVIRONMENT", "dev")
+    secret_id = os.environ.get("ALM_SECRET_ID", f"fde-{env}/alm-tokens")
+
+    try:
+        sm = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        response = sm.get_secret_value(SecretId=secret_id)
+        secret_data = json.loads(response["SecretString"])
+        token = secret_data.get(token_name, "")
+        if token:
+            _TOKEN_CACHE[token_name] = (token, now)
+            logger.debug("Token %s fetched from Secrets Manager", token_name)
+            return token
+    except Exception as e:
+        # Secrets Manager unavailable — fall back to env var (local dev only)
+        logger.warning(
+            "Secrets Manager unavailable for %s (falling back to env var): %s",
+            token_name, type(e).__name__,
+        )
+
+    # Fallback: env var (local development mode only)
+    fallback = os.environ.get(token_name, "")
+    if fallback:
+        _TOKEN_CACHE[token_name] = (fallback, now)
+        logger.debug("Token %s loaded from env var (local dev fallback)", token_name)
+    return fallback
 
 
 @tool
@@ -67,9 +136,9 @@ def update_github_issue(owner: str, repo: str, issue_number: int, comment: str) 
     Returns:
         Status message.
     """
-    token = os.environ.get("GITHUB_TOKEN", "")
+    token = _fetch_alm_token("GITHUB_TOKEN")
     if not token:
-        return "SKIPPED: GITHUB_TOKEN not configured"
+        return "SKIPPED: GITHUB_TOKEN not available (check Secrets Manager)"
     resp = requests.post(
         f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
@@ -91,9 +160,9 @@ def update_gitlab_issue(project_id: int, issue_iid: int, comment: str) -> str:
     Returns:
         Status message.
     """
-    token = os.environ.get("GITLAB_TOKEN", "")
+    token = _fetch_alm_token("GITLAB_TOKEN")
     if not token:
-        return "SKIPPED: GITLAB_TOKEN not configured"
+        return "SKIPPED: GITLAB_TOKEN not available (check Secrets Manager)"
     gitlab_url = os.environ.get("GITLAB_URL", "https://gitlab.com")
     resp = requests.post(
         f"{gitlab_url}/api/v4/projects/{project_id}/issues/{issue_iid}/notes",
@@ -115,9 +184,9 @@ def update_asana_task(task_gid: str, comment: str) -> str:
     Returns:
         Status message.
     """
-    token = os.environ.get("ASANA_ACCESS_TOKEN", "")
+    token = _fetch_alm_token("ASANA_ACCESS_TOKEN")
     if not token:
-        return "SKIPPED: ASANA_ACCESS_TOKEN not configured"
+        return "SKIPPED: ASANA_ACCESS_TOKEN not available (check Secrets Manager)"
     resp = requests.post(
         f"https://app.asana.com/api/1.0/tasks/{task_gid}/stories",
         headers={"Authorization": f"Bearer {token}"},
@@ -138,10 +207,39 @@ def run_shell_command(command: str, working_dir: str = "/tmp/workspace") -> str:
     Returns:
         Command output (last 2000 chars).
     """
+    # ── OS-level destructive commands ──
     blocked = ["rm -rf /", "mkfs", "dd if=", ":(){"]
     for b in blocked:
         if b in command:
             return f"BLOCKED: dangerous pattern '{b}'"
+
+    # ── Git safety: FDE delivery rules enforcement ──
+    # Agent ALWAYS works on feature branches (never main/master).
+    # Agent NEVER merges, force pushes, or deletes branches.
+    _git_blocked = [
+        ("git push origin main", "push_to_main"),
+        ("git push origin master", "push_to_master"),
+        ("git push -u origin main", "push_to_main"),
+        ("git push -u origin master", "push_to_master"),
+        ("git merge main", "merge_main"),
+        ("git merge master", "merge_master"),
+        ("git checkout main", "checkout_main"),
+        ("git checkout master", "checkout_master"),
+        ("git switch main", "switch_main"),
+        ("git switch master", "switch_master"),
+        ("git branch -D", "branch_delete_force"),
+        ("git branch -d main", "branch_delete_main"),
+        ("git branch -d master", "branch_delete_master"),
+        ("git push --force", "force_push"),
+        ("git push -f", "force_push"),
+        ("git reset --hard origin/main", "hard_reset_main"),
+        ("git reset --hard origin/master", "hard_reset_master"),
+    ]
+    cmd_lower = command.lower()
+    for pattern, reason in _git_blocked:
+        if pattern.lower() in cmd_lower:
+            return f"BLOCKED: FDE delivery rule violation — '{reason}'. Agent must work on feature branches only."
+
     os.makedirs(working_dir, exist_ok=True)
     try:
         result = subprocess.run(
@@ -153,6 +251,106 @@ def run_shell_command(command: str, working_dir: str = "/tmp/workspace") -> str:
         return "TIMEOUT: exceeded 300s"
     except Exception as e:
         return f"ERROR: {e}"
+
+
+@tool
+def create_github_pull_request(
+    owner: str, repo: str, title: str, body: str,
+    head_branch: str, base_branch: str = "main",
+) -> str:
+    """Create a pull request on GitHub with structured body.
+
+    Enforces FDE delivery rules:
+    - head_branch must NOT be main/master
+    - base_branch defaults to main
+    - Agent NEVER merges — human approves
+
+    Args:
+        owner: Repository owner.
+        repo: Repository name.
+        title: PR title (concise, under 70 chars).
+        body: PR body (summary, spec ref, validation results).
+        head_branch: Feature branch with changes.
+        base_branch: Target branch (default: main).
+
+    Returns:
+        Status message with PR URL.
+    """
+    # Enforce: head must be a feature branch
+    if head_branch in ("main", "master"):
+        return "BLOCKED: FDE rule — head_branch cannot be main/master. Use a feature branch."
+
+    token = _fetch_alm_token("GITHUB_TOKEN")
+    if not token:
+        return "SKIPPED: GITHUB_TOKEN not available (check Secrets Manager)"
+
+    resp = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+        json={
+            "title": title,
+            "body": body,
+            "head": head_branch,
+            "base": base_branch,
+            "draft": False,
+        },
+        timeout=30,
+    )
+
+    if resp.status_code == 201:
+        pr_data = resp.json()
+        return f"PR created: {pr_data['html_url']} (#{pr_data['number']})"
+    return f"Failed to create PR: HTTP {resp.status_code} — {resp.text[:200]}"
+
+
+@tool
+def create_gitlab_merge_request(
+    project_id: int, title: str, description: str,
+    source_branch: str, target_branch: str = "main",
+) -> str:
+    """Create a merge request on GitLab with structured description.
+
+    Enforces FDE delivery rules:
+    - source_branch must NOT be main/master
+    - target_branch defaults to main
+    - Agent NEVER merges — human approves
+
+    Args:
+        project_id: GitLab project ID.
+        title: MR title (concise, under 70 chars).
+        description: MR description (summary, spec ref, validation results).
+        source_branch: Feature branch with changes.
+        target_branch: Target branch (default: main).
+
+    Returns:
+        Status message with MR URL.
+    """
+    # Enforce: source must be a feature branch
+    if source_branch in ("main", "master"):
+        return "BLOCKED: FDE rule — source_branch cannot be main/master. Use a feature branch."
+
+    token = _fetch_alm_token("GITLAB_TOKEN")
+    if not token:
+        return "SKIPPED: GITLAB_TOKEN not available (check Secrets Manager)"
+
+    gitlab_url = os.environ.get("GITLAB_URL", "https://gitlab.com")
+    resp = requests.post(
+        f"{gitlab_url}/api/v4/projects/{project_id}/merge_requests",
+        headers={"PRIVATE-TOKEN": token},
+        json={
+            "title": title,
+            "description": description,
+            "source_branch": source_branch,
+            "target_branch": target_branch,
+            "remove_source_branch": True,
+        },
+        timeout=30,
+    )
+
+    if resp.status_code == 201:
+        mr_data = resp.json()
+        return f"MR created: {mr_data['web_url']} (!{mr_data['iid']})"
+    return f"Failed to create MR: HTTP {resp.status_code} — {resp.text[:200]}"
 
 
 @tool
@@ -205,5 +403,5 @@ def read_factory_health(window_days: int = 30) -> str:
 
 
 RECON_TOOLS = [read_spec, run_shell_command]
-ENGINEERING_TOOLS = [read_spec, write_artifact, run_shell_command, update_github_issue, update_gitlab_issue, update_asana_task]
+ENGINEERING_TOOLS = [read_spec, write_artifact, run_shell_command, update_github_issue, update_gitlab_issue, update_asana_task, create_github_pull_request, create_gitlab_merge_request]
 REPORTING_TOOLS = [write_artifact, update_github_issue, update_gitlab_issue, update_asana_task, read_factory_metrics, read_factory_health]

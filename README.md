@@ -209,6 +209,8 @@ The factory integrates with GitHub Actions and GitLab CI Ultimate (through mirro
 | Document | Purpose | Start Here If... |
 |----------|---------|-----------------|
 | [Adoption Guide](docs/guides/fde-adoption-guide.md) | Setup + first task walkthrough | You want to start using the factory today |
+| [AWS Deployment Setup](docs/guides/deployment-setup.md) | SSO auth, Terraform prerequisites, deploy commands | You want to deploy the cloud infrastructure |
+| [Auth Setup](docs/guides/auth-setup.md) | ALM token creation (GitHub, GitLab, Asana) | You need to configure platform API access |
 | [Blueprint](docs/blueprint/fde-blueprint-design.md) | Full architecture (16 sections) | You want to understand the design decisions |
 | [Hook Deploy Guide](docs/blueprint/fde-hooks-deploy-guide.md) | Exact JSON for all 13 hooks | You want to deploy or customize hooks |
 | [Design Document](docs/architecture/design-document.md) | Requirements, components, information flow | You want the formal tech design |

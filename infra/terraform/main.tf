@@ -321,6 +321,23 @@ resource "aws_iam_role_policy" "ecs_task_agentcore" {
   })
 }
 
+# ─── ADR-014: Secret Isolation — Task role fetches ALM tokens at runtime ──
+resource "aws_iam_role_policy" "ecs_task_alm_secrets" {
+  name = "${local.name_prefix}-alm-secrets-read"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [aws_secretsmanager_secret.alm_tokens.arn]
+      }
+    ]
+  })
+}
+
 # ─── VPC: Networking for ECS Fargate ─────────────────────────────
 module "vpc" {
   source = "./modules/vpc"
@@ -358,9 +375,10 @@ resource "aws_ecs_task_definition" "strands_agent" {
       ]
 
       secrets = [
-        { name = "GITHUB_TOKEN", valueFrom = "${aws_secretsmanager_secret.alm_tokens.arn}:GITHUB_TOKEN::" },
-        { name = "ASANA_ACCESS_TOKEN", valueFrom = "${aws_secretsmanager_secret.alm_tokens.arn}:ASANA_ACCESS_TOKEN::" },
-        { name = "GITLAB_TOKEN", valueFrom = "${aws_secretsmanager_secret.alm_tokens.arn}:GITLAB_TOKEN::" }
+        # ALM tokens removed from container env vars (ADR-014: Secret Isolation).
+        # Tokens are fetched from Secrets Manager at tool invocation time via
+        # _fetch_alm_token() in agents/tools.py. This prevents the LLM from
+        # observing token values in its context window.
       ]
 
       logConfiguration = {

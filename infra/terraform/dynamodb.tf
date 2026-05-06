@@ -26,6 +26,10 @@ resource "aws_dynamodb_table" "task_queue" {
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "task_id"
 
+  # ADR-014: Enable streams for DAG fan-out (PENDING → READY transitions)
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
+
   attribute {
     name = "task_id"
     type = "S"

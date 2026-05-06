@@ -94,8 +94,9 @@ def validate_environment() -> list[str]:
     issues = []
     if not FACTORY_BUCKET:
         issues.append("FACTORY_BUCKET not set")
-    if not any([os.environ.get("GITHUB_TOKEN"), os.environ.get("ASANA_ACCESS_TOKEN"), os.environ.get("GITLAB_TOKEN")]):
-        issues.append("No ALM tokens configured")
+    # ALM tokens are no longer validated at startup (ADR-014).
+    # They are fetched from Secrets Manager at tool invocation time.
+    # This prevents token values from being visible in the container env.
     if FACTORY_BUCKET:
         try:
             boto3.client("s3", region_name=AWS_REGION).head_bucket(Bucket=FACTORY_BUCKET)
