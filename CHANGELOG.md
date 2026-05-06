@@ -29,7 +29,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `docs/flows/14-repo-onboarding.md` — Phase 0 flow diagram with Mermaid (9 stages + incremental re-scan).
 
 ### Added — Ephemeral Catalog for Regulated Environments (ADR-016, SEC 7-10)
-- `docs/adr/ADR-016-ephemeral-catalog-data-residency.md` — Data residency architecture: three persistence modes (cloud/local/ephemeral), customer-controlled encryption via KMS, TTL-based auto-destruction, audit sidecar without data exposure. Addresses SOC 2, PCI DSS, HIPAA, FedRAMP, ITAR/EAR, GDPR Art. 28 requirements.
+- `docs/adr/ADR-016-ephemeral-catalog-data-residency.md` — Data residency architecture: three persistence modes (cloud/local/ephemeral), customer-controlled encryption via KMS, TTL-based auto-destruction, audit sidecar without data exposure.
+
+### Added — Operational Tooling and Observability
+- `scripts/validate-e2e-cloud.sh` — Full infrastructure health check (11 checks). Single command validates factory readiness.
+- `scripts/deploy-dashboard.sh` — Automated dashboard deployment with config injection from terraform outputs.
+- `scripts/setup-fde-client.sh` — One-command FDE client setup for any project (hooks + ALM integration).
+- `scripts/setup-alm-integration.sh` — Platform-agnostic ALM setup (`--platform github|gitlab|asana`).
+- `scripts/bootstrap-fde-workspace.sh` — Installs minimal FDE hooks into any target workspace.
+- `infra/docker/agents/status_sync.py` — Posts structured progress comments to GitHub issues during pipeline execution.
+- `infra/dashboard/index.html` — Agentic UX dashboard (Cyber-Industrial theme, chain-of-thought log, light/dark mode, ProServe logo).
+- `infra/terraform/dashboard.tf` — Dashboard status Lambda + API Gateway route (`GET /status/tasks`).
+- `infra/terraform/dashboard-cdn.tf` — CloudFront distribution + OAC for dashboard static hosting.
+- `infra/terraform/lambda/dashboard_status/index.py` — Lambda reading DynamoDB task_queue for dashboard metrics.
+- `docs/guides/staff-engineer-post-deploy.md` — Complete post-deploy operations guide.
+- `docs/corrections-of-error-cloudfront-kms.md` — COE: CloudFront OAC + SSE-KMS access denied root cause and fix.
+
+### Changed — Bedrock Model (Legacy → Active)
+- Migrated from `anthropic.claude-3-haiku-20240307-v1:0` (LEGACY) to `us.anthropic.claude-haiku-4-5-20251001-v1:0` (ACTIVE inference profile).
+
+### Changed — Security Cleanup
+- Removed all hardcoded account IDs, endpoint URLs, and profile names from active code and docs.
+- Dashboard API URL injected at deploy time via `<meta>` tag.
+- Dockerfile: added non-root user, suppressed ONNX Runtime warning.
+
+### Infrastructure Deployed
+- 9 new resources added to existing stack (ECR onboarding repo, ECS task def, IAM role, EventBridge rule, CloudWatch alarms, dashboard Lambda, CloudFront distribution).
+- Docker images pushed: `fde-dev-onboarding-agent:latest`, `fde-dev-strands-agent:latest`.
+- Dashboard live via CloudFront. Status API responding at `/status/tasks`.
 
 ### Changed — Dependencies (Repo Onboarding Agent)
 - `infra/docker/requirements.txt` — Added magika, tree-sitter, tree-sitter-languages, networkx to shared dependencies.
