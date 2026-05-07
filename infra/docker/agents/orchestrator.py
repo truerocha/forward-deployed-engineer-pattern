@@ -36,6 +36,7 @@ from .registry import AgentRegistry, AgentDefinition
 from .router import AgentRouter, RoutingDecision
 from .scope_boundaries import check_scope
 from .workspace_setup import setup_workspace, push_and_create_pr, WorkspaceContext
+from .project_registry import get_registry
 from . import task_queue
 
 logger = logging.getLogger("fde.orchestrator")
@@ -147,6 +148,27 @@ class Orchestrator:
         # Emit initial stage update
         task_queue.update_task_stage(task_id, "ingested")
         task_queue.append_task_event(task_id, "system", f"Pipeline started — autonomy={autonomy_result.level}, confidence={scope_result.confidence_level}")
+
+        # ── Step 3.2: Concurrency Guard ─────────────────────────
+        # Prevent too many parallel agents on the same repo (merge conflict risk).
+        repo = data_contract.get("repo", "")
+        if repo:
+            project_config = get_registry().get_project(repo)
+            can_proceed, active_count = task_queue.check_concurrency(
+                repo, project_config.max_concurrent_tasks,
+            )
+            if not can_proceed:
+                task_queue.append_task_event(
+                    task_id, "gate",
+                    f"Concurrency guard: {active_count}/{project_config.max_concurrent_tasks} slots used — queued",
+                )
+                task_queue.update_task_stage(task_id, "ingested")
+                return {
+                    "status": "queued",
+                    "reason": f"Concurrency limit reached for {repo} ({active_count}/{project_config.max_concurrent_tasks})",
+                    "task_id": task_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
 
         existing_plan = load_plan(task_id, self._plans_dir)
         if existing_plan:

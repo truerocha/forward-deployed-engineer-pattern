@@ -49,8 +49,15 @@ def handler(event, context):
 
 
 def _handle_tasks(event, context):
-    """GET /status/tasks — Full dashboard payload with agent assignment."""
+    """GET /status/tasks — Full dashboard payload with agent assignment.
+
+    Supports query parameter ?repo=owner/repo for project filtering.
+    """
     try:
+        # Extract repo filter from query parameters
+        params = event.get("queryStringParameters") or {}
+        repo_filter = params.get("repo", "")
+
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
         # Fetch tasks from last 24h
@@ -59,6 +66,10 @@ def _handle_tasks(event, context):
             Limit=50,
         )
         items = task_response.get("Items", [])
+
+        # Apply repo filter if specified
+        if repo_filter:
+            items = [i for i in items if i.get("repo", "") == repo_filter]
 
         # Fetch active agents
         agents = _fetch_active_agents()
@@ -126,6 +137,8 @@ def _handle_tasks(event, context):
             },
             "tasks": tasks[:20],
             "agents": _build_agent_summary(agents),
+            "projects": _extract_projects(items),
+            "repo_filter": repo_filter,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -279,6 +292,25 @@ def _build_agent_summary(agents: list) -> list:
             "execution_time_ms": int(agent.get("execution_time_ms", 0)),
         })
     return summary
+
+
+def _extract_projects(items: list) -> list:
+    """Extract unique projects from task items for the project selector."""
+    repos = {}
+    for item in items:
+        repo = item.get("repo", "")
+        if repo and repo not in repos:
+            repos[repo] = {
+                "repo": repo,
+                "display_name": repo.split("/")[-1] if "/" in repo else repo,
+                "task_count": 0,
+                "active": 0,
+            }
+        if repo:
+            repos[repo]["task_count"] += 1
+            if item.get("status") in ("RUNNING", "IN_PROGRESS", "READY"):
+                repos[repo]["active"] += 1
+    return list(repos.values())
 
 
 def _compute_elapsed(item: dict) -> int:

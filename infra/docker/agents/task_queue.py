@@ -185,6 +185,51 @@ def find_task_by_issue(issue_id: str) -> dict | None:
     return None
 
 
+def count_active_tasks_for_repo(repo: str) -> int:
+    """Count tasks currently IN_PROGRESS or RUNNING for a specific repo.
+
+    Used by the concurrency guard to prevent too many parallel agents
+    on the same repository (risk of merge conflicts).
+
+    Args:
+        repo: Full repo name (e.g., 'truerocha/cognitive-wafr').
+
+    Returns:
+        Number of active tasks for this repo.
+    """
+    table = _get_table()
+    count = 0
+
+    for status in ("IN_PROGRESS", "RUNNING"):
+        items = table.query(
+            IndexName="status-created-index",
+            KeyConditionExpression=Key("status").eq(status),
+        ).get("Items", [])
+        count += sum(1 for item in items if item.get("repo") == repo)
+
+    return count
+
+
+def check_concurrency(repo: str, max_concurrent: int = 2) -> tuple[bool, int]:
+    """Check if a new task can start for this repo without exceeding limits.
+
+    Args:
+        repo: Full repo name.
+        max_concurrent: Maximum allowed concurrent tasks for this repo.
+
+    Returns:
+        Tuple of (can_proceed: bool, current_count: int).
+    """
+    current = count_active_tasks_for_repo(repo)
+    can_proceed = current < max_concurrent
+    if not can_proceed:
+        logger.warning(
+            "Concurrency guard: repo=%s has %d/%d active tasks — new task must wait",
+            repo, current, max_concurrent,
+        )
+    return can_proceed, current
+
+
 def complete_task(task_id: str, result: str) -> dict:
     table = _get_table()
     table.update_item(

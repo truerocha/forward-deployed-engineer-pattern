@@ -129,6 +129,9 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
     <div class="cf-flow__header">
       <div class="cf-flow__title">Pipeline Activity</div>
       <div class="cf-flow__actions">
+        <select id="project-filter" onchange="filterByProject()" style="font-size:9px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-muted);font-family:var(--mono);cursor:pointer">
+          <option value="">ALL PROJECTS</option>
+        </select>
         <button class="cf-flow__btn cf-flow__btn--health" id="btn-health" onclick="checkHealth()">HEALTH ✓</button>
         <button class="cf-flow__btn" onclick="refreshData()">REFRESH</button>
       </div>
@@ -147,13 +150,22 @@ const API=document.querySelector('meta[name="factory-api-url"]')?.content||'';
 const REFRESH=15000;
 const STAGES=['ingested','workspace','reconnaissance','intake','engineering','testing','review','completion'];
 
+let currentRepoFilter='';
+
+function filterByProject(){
+  currentRepoFilter=document.getElementById('project-filter').value;
+  refreshData();
+}
+
 async function refreshData(){
   if(!API){addLog('SYSTEM','No API URL. Deploy with: bash scripts/deploy-dashboard.sh','warn');return}
   try{
-    const r=await fetch(API+'/status/tasks',{headers:{Accept:'application/json'}});
+    const url=currentRepoFilter?`${API}/status/tasks?repo=${encodeURIComponent(currentRepoFilter)}`:`${API}/status/tasks`;
+    const r=await fetch(url,{headers:{Accept:'application/json'}});
     if(!r.ok){addLog('SYSTEM',`API ${r.status}`,'warn');return}
     const d=await r.json();
     renderStats(d.metrics);renderAgents(d.tasks);renderFlow(d.tasks);renderEvents(d.tasks);
+    renderProjectFilter(d.projects||[]);
     addLog('SYNC',`${d.tasks.length} tasks, ${d.metrics.active_agents||0} agents active`,'system');
     document.getElementById('health-dot').style.background='var(--success)';
     document.getElementById('health-dot').style.boxShadow='0 0 10px rgba(16,185,129,0.4)';
@@ -248,6 +260,20 @@ function renderFlow(tasks){
       </div>
     </div>`
   }).join('')
+}
+
+function renderProjectFilter(projects){
+  const sel=document.getElementById('project-filter');
+  if(!sel||!projects.length)return;
+  const current=sel.value;
+  sel.innerHTML='<option value="">ALL PROJECTS</option>';
+  projects.forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p.repo;
+    opt.textContent=`${p.display_name} (${p.active}/${p.task_count})`;
+    if(p.repo===current)opt.selected=true;
+    sel.appendChild(opt);
+  });
 }
 
 function renderEvents(tasks){
