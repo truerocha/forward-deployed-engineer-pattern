@@ -207,6 +207,26 @@ class Orchestrator:
         workspace = setup_workspace(event.get("detail", event), decision.metadata)
         if workspace.ready:
             logger.info("Workspace ready: %s (branch: %s)", workspace.repo_path, workspace.branch_name)
+            # Inject workspace context into the agent's prompt so it knows
+            # it's in a cloned repo and doesn't re-initialize git
+            workspace_context = (
+                f"\n\n## Workspace Context\n"
+                f"- **Repository**: {workspace.repo_full_name} (already cloned)\n"
+                f"- **Branch**: `{workspace.branch_name}` (already created and checked out)\n"
+                f"- **Working directory**: `{workspace.repo_path}`\n"
+                f"- **Issue**: #{workspace.issue_number}\n"
+                f"- **IMPORTANT**: Do NOT run `git init` or `git clone`. The repo is ready.\n"
+                f"- **IMPORTANT**: All file operations happen in `{workspace.repo_path}`.\n"
+                f"- **Delivery**: Commit your changes with `git add` + `git commit`. "
+                f"Push and PR creation are handled automatically after you finish.\n"
+            )
+            decision = RoutingDecision(
+                agent_name=decision.agent_name,
+                prompt=decision.prompt + workspace_context,
+                metadata=decision.metadata,
+                should_process=decision.should_process,
+                data_contract=decision.data_contract,
+            )
         else:
             logger.warning("Workspace setup failed: %s — agents will run without repo context", workspace.error)
             task_queue.update_task_stage(task_id, "workspace", workspace_error=workspace.error)

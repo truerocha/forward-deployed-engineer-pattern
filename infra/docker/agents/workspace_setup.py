@@ -120,6 +120,9 @@ def setup_workspace(event_detail: dict, metadata: dict) -> WorkspaceContext:
         os.environ["GIT_ASKPASS"] = askpass_path
         os.environ["GIT_TERMINAL_PROMPT"] = "0"
 
+        # Expose GITHUB_TOKEN for agent tools (create_github_pull_request, etc.)
+        os.environ["GITHUB_TOKEN"] = github_pat
+
         # Set workspace as working directory for agent tools
         os.environ["AGENT_WORKSPACE"] = repo_path
         os.chdir(repo_path)

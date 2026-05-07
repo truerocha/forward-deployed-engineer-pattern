@@ -197,16 +197,20 @@ def update_asana_task(task_gid: str, comment: str) -> str:
 
 
 @tool
-def run_shell_command(command: str, working_dir: str = "/tmp/workspace") -> str:
+def run_shell_command(command: str, working_dir: str = "") -> str:
     """Execute a shell command in the workspace.
 
     Args:
         command: Shell command to execute.
-        working_dir: Working directory.
+        working_dir: Working directory. Defaults to AGENT_WORKSPACE env var
+                     (set by workspace_setup.py) or /tmp/workspace.
 
     Returns:
         Command output (last 2000 chars).
     """
+    if not working_dir:
+        working_dir = os.environ.get("AGENT_WORKSPACE", "/tmp/workspace")
+
     # ── OS-level destructive commands ──
     blocked = ["rm -rf /", "mkfs", "dd if=", ":(){"]
     for b in blocked:

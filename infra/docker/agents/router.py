@@ -220,6 +220,7 @@ class AgentRouter:
         labels = [l.get("name", "") for l in issue.get("labels", [])]
 
         contract: dict = {
+            "task_id": f"GH-{issue.get('number', 0)}",
             "title": issue.get("title", ""),
             "description": body,
             "source": "github",
