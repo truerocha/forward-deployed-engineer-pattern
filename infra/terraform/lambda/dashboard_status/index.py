@@ -29,6 +29,7 @@ lifecycle_table = dynamodb.Table(AGENT_LIFECYCLE_TABLE)
 # Pipeline stages in execution order (for progress visualization)
 PIPELINE_STAGES = [
     "ingested",
+    "workspace",
     "reconnaissance",
     "intake",
     "engineering",
@@ -103,6 +104,8 @@ def _handle_tasks(event, context):
                 "repo": item.get("repo", ""),
                 "source": item.get("source", ""),
                 "issue_url": item.get("issue_url", ""),
+                "pr_url": item.get("pr_url", ""),
+                "workspace_error": item.get("workspace_error", ""),
                 "priority": item.get("priority", "P2"),
                 "duration_ms": int(item.get("duration_ms", 0)),
                 "elapsed_ms": _compute_elapsed(item),

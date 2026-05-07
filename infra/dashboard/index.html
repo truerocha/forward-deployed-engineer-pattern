@@ -145,7 +145,7 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
 <script>
 const API=document.querySelector('meta[name="factory-api-url"]')?.content||'';
 const REFRESH=15000;
-const STAGES=['ingested','reconnaissance','intake','engineering','testing','review','completion'];
+const STAGES=['ingested','workspace','reconnaissance','intake','engineering','testing','review','completion'];
 
 async function refreshData(){
   if(!API){addLog('SYSTEM','No API URL. Deploy with: bash scripts/deploy-dashboard.sh','warn');return}
@@ -204,6 +204,8 @@ function renderAgents(tasks){
       return`<div class="cf-agent-card__stage" title="${s}"></div>`;
     }).join('');
 
+    const prBadge=t.pr_url?`<div style="font-size:9px;margin-top:4px"><a href="${t.pr_url}" target="_blank" style="color:var(--success);text-decoration:none">\ud83d\udd17 PR #${t.pr_url.split('/').pop()} \u2197</a></div>`:(t.workspace_error?`<div style="font-size:9px;margin-top:4px;color:var(--error)">\u26a0 ${esc(t.workspace_error.substring(0,40))}</div>`:'');
+
     return`<div class="cf-agent-card">
       <div class="cf-agent-card__top">
         <span class="cf-agent-card__name" title="${esc(t.title)}">${esc((t.title||t.task_id).substring(0,30))}</span>
@@ -215,7 +217,7 @@ function renderAgents(tasks){
       <div class="cf-agent-card__meta">
         <span class="cf-agent-card__stage-label">${t.current_stage||'queued'}</span>
         <span class="cf-agent-card__elapsed">\u23f1 ${fmt(elapsed)}</span>
-      </div>
+      </div>${prBadge}
     </div>`
   }).join('')
 }
@@ -240,6 +242,8 @@ function renderFlow(tasks){
           ${priorityClass}
           ${t.status==='completed'?'<span class="verified">\u2713 Verified</span>':''}
           ${t.agent?.instance_id?`<span>agent: ${t.agent.instance_id.slice(-8)}</span>`:''}
+          ${t.pr_url?`<a href="${t.pr_url}" target="_blank" style="color:var(--success);text-decoration:none">\ud83d\udd17 PR</a>`:''}
+          ${t.workspace_error?`<span style="color:var(--error)">\u26a0 workspace: ${esc(t.workspace_error.substring(0,30))}</span>`:''}
         </div>
       </div>
     </div>`
