@@ -180,14 +180,17 @@ resource "aws_cloudwatch_event_target" "onboarding_ecs" {
       correlation_id = "$.detail.correlation_id"
       clone_depth    = "$.detail.clone_depth"
     }
+    # COE-011: String values from JSON paths must be quoted in the template.
+    # Without quotes, EventBridge injects raw values that break the JSON structure
+    # for ECS containerOverrides, causing silent RunTask failure.
     input_template = <<-EOF
       {
         "containerOverrides": [{
           "name": "onboarding-agent",
           "environment": [
-            {"name": "REPO_URL", "value": <repo_url>},
-            {"name": "CORRELATION_ID", "value": <correlation_id>},
-            {"name": "CLONE_DEPTH", "value": <clone_depth>}
+            {"name": "REPO_URL", "value": "<repo_url>"},
+            {"name": "CORRELATION_ID", "value": "<correlation_id>"},
+            {"name": "CLONE_DEPTH", "value": "<clone_depth>"}
           ]
         }]
       }

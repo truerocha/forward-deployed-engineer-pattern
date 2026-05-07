@@ -75,15 +75,22 @@ resource "aws_iam_role_policy" "eventbridge_ecs_run_task" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect    = "Allow"
-        Action    = ["ecs:RunTask"]
-        Resource  = [aws_ecs_task_definition.strands_agent.arn]
+        Effect = "Allow"
+        Action = ["ecs:RunTask"]
+        Resource = [
+          aws_ecs_task_definition.strands_agent.arn,
+          aws_ecs_task_definition.onboarding_agent.arn,
+        ]
         Condition = { ArnLike = { "ecs:cluster" = aws_ecs_cluster.factory.arn } }
       },
       {
-        Effect   = "Allow"
-        Action   = ["iam:PassRole"]
-        Resource = [aws_iam_role.ecs_task_execution.arn, aws_iam_role.ecs_task.arn]
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = [
+          aws_iam_role.ecs_task_execution.arn,
+          aws_iam_role.ecs_task.arn,
+          aws_iam_role.onboarding_task.arn,
+        ]
       }
     ]
   })
