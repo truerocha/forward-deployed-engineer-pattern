@@ -24,8 +24,6 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
 .cf-header__sep{width:1px;height:24px;background:rgba(255,255,255,0.15);margin:0 4px}
 .cf-header__theme{background:transparent;border:1px solid var(--border);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;line-height:1}
 .cf-header__theme:hover{border-color:var(--border-hover)}
-
-/* Light theme */
 [data-theme="light"]{--bg:#f8fafc;--surface:rgba(255,255,255,0.95);--border:rgba(0,0,0,0.08);--border-hover:rgba(99,102,241,0.4);--text:#1e293b;--text-muted:#64748b;--text-dim:#94a3b8}
 [data-theme="light"] .cf-header{background:#232F3E;border-bottom-color:#FF9900}
 [data-theme="light"] .cf-header__sep{background:rgba(255,255,255,0.2)}
@@ -36,25 +34,41 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
 [data-theme="light"] .cf-flow__branch{background:rgba(0,0,0,0.04)}
 [data-theme="light"] .cf-agent-card__bar{background:rgba(0,0,0,0.06)}
 .cf-body{display:flex;flex:1;gap:1px;overflow:hidden}
-.cf-agents{width:300px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.cf-agents__header{padding:16px 16px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
+.cf-agents{width:320px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.cf-agents__header{padding:16px 16px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center}
+.cf-agents__capacity{font-size:9px;font-weight:400;color:var(--text-dim)}
 .cf-agents__list{flex:1;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
 .cf-agent-card{padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius);transition:border-color 0.2s}
 .cf-agent-card:hover{border-color:var(--border-hover)}
-.cf-agent-card__top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.cf-agent-card__name{font-size:11px;font-weight:600}
+.cf-agent-card__top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.cf-agent-card__name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
 .cf-agent-card__status{font-size:8px;padding:2px 6px;border-radius:4px;font-weight:500;text-transform:uppercase}
 .cf-agent-card__status--running{background:rgba(139,92,246,0.15);color:var(--running)}
-.cf-agent-card__status--idle{background:rgba(100,116,139,0.15);color:var(--text-muted)}
-.cf-agent-card__status--done{background:rgba(16,185,129,0.15);color:var(--success)}
-.cf-agent-card__bar{width:100%;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.cf-agent-card__status--ready{background:rgba(99,102,241,0.15);color:var(--accent)}
+.cf-agent-card__status--pending{background:rgba(100,116,139,0.15);color:var(--text-muted)}
+.cf-agent-card__status--completed{background:rgba(16,185,129,0.15);color:var(--success)}
+.cf-agent-card__status--failed{background:rgba(239,68,68,0.15);color:var(--error)}
+.cf-agent-card__status--blocked{background:rgba(245,158,11,0.15);color:var(--warning)}
+.cf-agent-card__agent{font-size:9px;color:var(--text-dim);margin-bottom:6px;font-family:var(--mono)}
+.cf-agent-card__timeline{display:flex;gap:2px;margin-bottom:6px;align-items:center}
+.cf-agent-card__stage{width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,0.06);position:relative;flex:1}
+.cf-agent-card__stage--done{background:var(--success)}
+.cf-agent-card__stage--active{background:var(--accent);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.cf-agent-card__bar{width:100%;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;margin-bottom:6px}
 .cf-agent-card__bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.5s}
-.cf-agent-card__thought{font-family:var(--mono);font-size:10px;color:var(--text-dim);font-style:italic;line-height:1.4}
+.cf-agent-card__meta{display:flex;justify-content:space-between;align-items:center}
+.cf-agent-card__stage-label{font-family:var(--mono);font-size:9px;color:var(--text-dim)}
+.cf-agent-card__elapsed{font-family:var(--mono);font-size:9px;color:var(--text-muted)}
 .cf-flow{flex:1;background:var(--surface);position:relative;display:flex;flex-direction:column;overflow:hidden}
 .cf-flow__header{padding:16px 24px 12px;display:flex;justify-content:space-between;align-items:center}
 .cf-flow__title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
+.cf-flow__actions{display:flex;gap:8px}
 .cf-flow__btn{font-size:9px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-muted);cursor:pointer;font-family:var(--mono)}
 .cf-flow__btn:hover{border-color:var(--border-hover);color:var(--text)}
+.cf-flow__btn--health{border-color:var(--success);color:var(--success)}
+.cf-flow__btn--health.degraded{border-color:var(--warning);color:var(--warning)}
+.cf-flow__btn--health.unhealthy{border-color:var(--error);color:var(--error)}
 .cf-flow__list{flex:1;overflow-y:auto;padding:0 24px 24px}
 .cf-flow__node{display:flex;align-items:flex-start;gap:16px;padding:16px 0;border-bottom:1px solid var(--border);animation:fadeIn 0.4s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
@@ -62,11 +76,15 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
 .cf-flow__dot:hover{box-shadow:0 0 12px var(--accent-glow)}
 .cf-flow__dot--done{background:var(--success);border-color:var(--success)}
 .cf-flow__dot--fail{background:var(--error);border-color:var(--error)}
+.cf-flow__dot--running{background:var(--running);border-color:var(--running);animation:pulse 1.5s infinite}
 .cf-flow__info{flex:1}
 .cf-flow__branch{font-size:9px;font-weight:600;padding:2px 6px;background:rgba(255,255,255,0.05);border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;display:inline-block;margin-bottom:4px}
 .cf-flow__task{font-size:13px;color:var(--text);margin-bottom:4px}
-.cf-flow__meta{font-family:var(--mono);font-size:10px;color:var(--text-dim);display:flex;gap:12px}
+.cf-flow__meta{font-family:var(--mono);font-size:10px;color:var(--text-dim);display:flex;gap:12px;flex-wrap:wrap}
 .cf-flow__meta .verified{color:rgba(16,185,129,0.7)}
+.cf-flow__meta .priority{padding:1px 4px;border-radius:3px;font-size:8px;font-weight:600}
+.cf-flow__meta .priority--P0{background:rgba(239,68,68,0.2);color:var(--error)}
+.cf-flow__meta .priority--P1{background:rgba(245,158,11,0.2);color:var(--warning)}
 .cf-log{width:360px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column}
 .cf-log__header{padding:16px 16px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
 .cf-log__terminal{flex:1;background:rgba(0,0,0,0.4);margin:0 12px 12px;border-radius:var(--radius);padding:12px;font-family:var(--mono);font-size:11px;overflow-y:auto;line-height:1.6}
@@ -76,6 +94,7 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
 .cf-log__entry--agent{color:var(--accent)}
 .cf-log__entry--warn{color:var(--warning)}
 .cf-log__entry--info{color:var(--text-dim)}
+.cf-log__entry--error{color:var(--error)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
@@ -94,18 +113,25 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
     <div>COMPLETED: <span class="val val--success" id="s-done">0</span></div>
     <div>FAILED: <span class="val val--warn" id="s-fail">0</span></div>
     <div>AVG: <span class="val" id="s-avg">—</span></div>
+    <div>AGENTS: <span class="val val--active" id="s-agents">0/0</span></div>
     <button class="cf-header__theme" id="btn-theme" onclick="toggleTheme()" aria-label="Toggle theme">☀️</button>
   </div>
 </header>
 <div class="cf-body">
   <aside class="cf-agents">
-    <div class="cf-agents__header">Autonomous Units</div>
+    <div class="cf-agents__header">
+      <span>Autonomous Units</span>
+      <span class="cf-agents__capacity" id="agent-capacity">0 provisioned</span>
+    </div>
     <div class="cf-agents__list" id="agent-list"></div>
   </aside>
   <main class="cf-flow">
     <div class="cf-flow__header">
       <div class="cf-flow__title">Pipeline Activity</div>
-      <button class="cf-flow__btn" onclick="refreshData()">REFRESH</button>
+      <div class="cf-flow__actions">
+        <button class="cf-flow__btn cf-flow__btn--health" id="btn-health" onclick="checkHealth()">HEALTH ✓</button>
+        <button class="cf-flow__btn" onclick="refreshData()">REFRESH</button>
+      </div>
     </div>
     <div class="cf-flow__list" id="flow-list"></div>
   </main>
@@ -119,6 +145,8 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
 <script>
 const API=document.querySelector('meta[name="factory-api-url"]')?.content||'';
 const REFRESH=15000;
+const STAGES=['ingested','reconnaissance','intake','engineering','testing','review','completion'];
+
 async function refreshData(){
   if(!API){addLog('SYSTEM','No API URL. Deploy with: bash scripts/deploy-dashboard.sh','warn');return}
   try{
@@ -126,31 +154,100 @@ async function refreshData(){
     if(!r.ok){addLog('SYSTEM',`API ${r.status}`,'warn');return}
     const d=await r.json();
     renderStats(d.metrics);renderAgents(d.tasks);renderFlow(d.tasks);
-    addLog('SYNC',`${d.tasks.length} tasks loaded`,'system');
+    addLog('SYNC',`${d.tasks.length} tasks, ${d.metrics.active_agents||0} agents active`,'system');
     document.getElementById('health-dot').style.background='var(--success)';
     document.getElementById('health-dot').style.boxShadow='0 0 10px rgba(16,185,129,0.4)';
-  }catch(e){addLog('SYSTEM','Connection failed','warn');document.getElementById('health-dot').style.background='var(--error)'}
+  }catch(e){addLog('SYSTEM','Connection failed: '+e.message,'warn');document.getElementById('health-dot').style.background='var(--error)'}
 }
-function renderStats(m){if(!m)return;document.getElementById('s-active').textContent=m.active||0;document.getElementById('s-done').textContent=m.completed_24h||0;document.getElementById('s-fail').textContent=m.failed_24h||0;document.getElementById('s-avg').textContent=fmt(m.avg_duration_ms)}
+
+async function checkHealth(){
+  if(!API){addLog('SYSTEM','No API URL configured','warn');return}
+  const btn=document.getElementById('btn-health');
+  try{
+    const r=await fetch(API+'/status/health',{headers:{Accept:'application/json'}});
+    const d=await r.json();
+    btn.className='cf-flow__btn cf-flow__btn--health';
+    if(d.status==='degraded'){btn.classList.add('degraded');btn.textContent='HEALTH \u26a0\ufe0f'}
+    else if(d.status==='unhealthy'){btn.classList.add('unhealthy');btn.textContent='HEALTH \u2717'}
+    else{btn.textContent='HEALTH \u2713'}
+    d.checks.forEach(c=>{
+      const type=c.status==='pass'?'system':c.status==='warn'?'warn':'error';
+      addLog('HEALTH',`${c.name}: ${c.detail}`,type);
+    });
+  }catch(e){btn.classList.add('unhealthy');btn.textContent='HEALTH \u2717';addLog('HEALTH','Check failed: '+e.message,'error')}
+}
+
+function renderStats(m){
+  if(!m)return;
+  document.getElementById('s-active').textContent=m.active||0;
+  document.getElementById('s-done').textContent=m.completed_24h||0;
+  document.getElementById('s-fail').textContent=m.failed_24h||0;
+  document.getElementById('s-avg').textContent=fmt(m.avg_duration_ms);
+  document.getElementById('s-agents').textContent=`${m.active_agents||0}/${m.total_agents_provisioned||0}`;
+  document.getElementById('agent-capacity').textContent=`${m.total_agents_provisioned||0} provisioned`;
+}
+
 function renderAgents(tasks){
   const c=document.getElementById('agent-list');
-  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:11px;padding:12px">No active agents</div>';return}
-  c.innerHTML=tasks.slice(0,6).map(t=>{
-    const st=t.status==='running'?'running':t.status==='completed'?'done':'idle';
-    const pct=t.status==='running'?'66%':t.status==='completed'?'100%':'0%';
-    return`<div class="cf-agent-card"><div class="cf-agent-card__top"><span class="cf-agent-card__name">${esc((t.title||t.task_id).substring(0,28))}</span><span class="cf-agent-card__status cf-agent-card__status--${st}">${t.status}</span></div><div class="cf-agent-card__bar"><div class="cf-agent-card__bar-fill" style="width:${pct}"></div></div><div class="cf-agent-card__thought">"${t.current_stage||'awaiting dispatch'}..."</div></div>`
+  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:11px;padding:12px">No active tasks. Label a GitHub issue with <code>factory-ready</code> to start.</div>';return}
+  c.innerHTML=tasks.slice(0,8).map(t=>{
+    const st=t.status;
+    const stageIdx=t.stage_progress?.current||0;
+    const pct=t.stage_progress?.percent||0;
+    const agentId=t.agent?.instance_id||'';
+    const agentName=t.agent?.name||'awaiting';
+    const elapsed=t.elapsed_ms||t.duration_ms||0;
+
+    const timeline=STAGES.map((s,i)=>{
+      if(i<stageIdx-1)return`<div class="cf-agent-card__stage cf-agent-card__stage--done" title="${s}"></div>`;
+      if(i===stageIdx-1)return`<div class="cf-agent-card__stage cf-agent-card__stage--active" title="${s}"></div>`;
+      return`<div class="cf-agent-card__stage" title="${s}"></div>`;
+    }).join('');
+
+    return`<div class="cf-agent-card">
+      <div class="cf-agent-card__top">
+        <span class="cf-agent-card__name" title="${esc(t.title)}">${esc((t.title||t.task_id).substring(0,30))}</span>
+        <span class="cf-agent-card__status cf-agent-card__status--${st}">${st}</span>
+      </div>
+      <div class="cf-agent-card__agent">\u26a1 ${esc(agentName)} ${agentId?'('+agentId.slice(-8)+')':''}</div>
+      <div class="cf-agent-card__timeline">${timeline}</div>
+      <div class="cf-agent-card__bar"><div class="cf-agent-card__bar-fill" style="width:${pct}%"></div></div>
+      <div class="cf-agent-card__meta">
+        <span class="cf-agent-card__stage-label">${t.current_stage||'queued'}</span>
+        <span class="cf-agent-card__elapsed">\u23f1 ${fmt(elapsed)}</span>
+      </div>
+    </div>`
   }).join('')
 }
+
 function renderFlow(tasks){
   const c=document.getElementById('flow-list');
-  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:24px;text-align:center">No pipeline activity in the last 24h</div>';return}
+  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:24px;text-align:center">No pipeline activity in the last 24h.<br><br>Label a GitHub issue with <code>factory-ready</code> to trigger the pipeline.</div>';return}
   c.innerHTML=tasks.map(t=>{
-    const dc=t.status==='completed'?'cf-flow__dot--done':t.status==='failed'?'cf-flow__dot--fail':'';
-    return`<div class="cf-flow__node"><div class="cf-flow__dot ${dc}"></div><div class="cf-flow__info"><span class="cf-flow__branch">${esc(t.repo||'direct')}</span><div class="cf-flow__task">${esc(t.title||t.task_id)}</div><div class="cf-flow__meta"><span>stage: ${t.current_stage||'—'}</span><span>${fmt(t.duration_ms)}</span>${t.status==='completed'?'<span class="verified">✓ Verified</span>':''}</div></div></div>`
+    const dc=t.status==='completed'?'cf-flow__dot--done':t.status==='failed'?'cf-flow__dot--fail':t.status==='running'?'cf-flow__dot--running':'';
+    const elapsed=t.elapsed_ms||t.duration_ms||0;
+    const priorityClass=t.priority&&t.priority!=='P2'?`<span class="priority priority--${t.priority}">${t.priority}</span>`:'';
+    const issueLink=t.issue_url?`<a href="${t.issue_url}" target="_blank" style="color:var(--accent);text-decoration:none">\u2197</a>`:'';
+
+    return`<div class="cf-flow__node">
+      <div class="cf-flow__dot ${dc}"></div>
+      <div class="cf-flow__info">
+        <span class="cf-flow__branch">${esc(t.repo||t.source||'direct')}</span>
+        <div class="cf-flow__task">${esc(t.title||t.task_id)} ${issueLink}</div>
+        <div class="cf-flow__meta">
+          <span>stage: ${t.current_stage||'\u2014'}</span>
+          <span>\u23f1 ${fmt(elapsed)}</span>
+          ${priorityClass}
+          ${t.status==='completed'?'<span class="verified">\u2713 Verified</span>':''}
+          ${t.agent?.instance_id?`<span>agent: ${t.agent.instance_id.slice(-8)}</span>`:''}
+        </div>
+      </div>
+    </div>`
   }).join('')
 }
-function addLog(a,m,type='info'){const t=document.getElementById('terminal');const e=document.createElement('div');e.className=`cf-log__entry cf-log__entry--${type}`;e.textContent=`[${a}] ${m}`;t.appendChild(e);t.scrollTop=t.scrollHeight;if(t.children.length>100)t.removeChild(t.firstChild)}
-function fmt(ms){if(!ms)return'—';if(ms<1000)return ms+'ms';const s=ms/1000;return s<60?s.toFixed(1)+'s':(s/60).toFixed(1)+'min'}
+
+function addLog(a,m,type='info'){const t=document.getElementById('terminal');const e=document.createElement('div');e.className=`cf-log__entry cf-log__entry--${type}`;const ts=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});e.textContent=`${ts} [${a}] ${m}`;t.appendChild(e);t.scrollTop=t.scrollHeight;if(t.children.length>100)t.removeChild(t.firstChild)}
+function fmt(ms){if(!ms)return'\u2014';if(ms<1000)return ms+'ms';const s=ms/1000;return s<60?s.toFixed(1)+'s':(s/60).toFixed(1)+'min'}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
 function toggleTheme(){
@@ -158,12 +255,13 @@ function toggleTheme(){
   const current=html.getAttribute('data-theme');
   const next=current==='light'?'dark':'light';
   html.setAttribute('data-theme',next);
-  document.getElementById('btn-theme').textContent=next==='light'?'🌙':'☀️';
+  document.getElementById('btn-theme').textContent=next==='light'?'\ud83c\udf19':'\u2600\ufe0f';
   localStorage.setItem('cf-theme',next);
 }
-(function(){const t=localStorage.getItem('cf-theme');if(t){document.documentElement.setAttribute('data-theme',t);if(document.getElementById('btn-theme'))document.getElementById('btn-theme').textContent=t==='light'?'🌙':'☀️'}})();
+(function(){const t=localStorage.getItem('cf-theme');if(t){document.documentElement.setAttribute('data-theme',t);if(document.getElementById('btn-theme'))document.getElementById('btn-theme').textContent=t==='light'?'\ud83c\udf19':'\u2600\ufe0f'}})();
 
 refreshData();setInterval(refreshData,REFRESH);
+setTimeout(checkHealth,3000);
 </script>
 </body>
 </html>

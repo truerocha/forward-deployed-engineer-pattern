@@ -23,8 +23,10 @@ resource "aws_lambda_function" "dashboard_status" {
 
   environment {
     variables = {
-      TASK_QUEUE_TABLE = aws_dynamodb_table.task_queue.name
-      AWS_REGION_NAME  = var.aws_region
+      TASK_QUEUE_TABLE      = aws_dynamodb_table.task_queue.name
+      AGENT_LIFECYCLE_TABLE = aws_dynamodb_table.agent_lifecycle.name
+      ENVIRONMENT           = var.environment
+      AWS_REGION_NAME       = var.aws_region
     }
   }
 
@@ -58,7 +60,12 @@ resource "aws_iam_role_policy" "dashboard_status_policy" {
       {
         Effect   = "Allow"
         Action   = ["dynamodb:Scan", "dynamodb:Query"]
-        Resource = [aws_dynamodb_table.task_queue.arn]
+        Resource = [
+          aws_dynamodb_table.task_queue.arn,
+          "${aws_dynamodb_table.task_queue.arn}/index/*",
+          aws_dynamodb_table.agent_lifecycle.arn,
+          "${aws_dynamodb_table.agent_lifecycle.arn}/index/*",
+        ]
       },
       {
         Effect   = "Allow"
@@ -81,6 +88,12 @@ resource "aws_apigatewayv2_integration" "dashboard_status" {
 resource "aws_apigatewayv2_route" "dashboard_status" {
   api_id    = aws_apigatewayv2_api.webhook.id
   route_key = "GET /status/tasks"
+  target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
+}
+
+resource "aws_apigatewayv2_route" "dashboard_health" {
+  api_id    = aws_apigatewayv2_api.webhook.id
+  route_key = "GET /status/health"
   target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
 }
 
