@@ -612,8 +612,7 @@ class Orchestrator:
             task_queue.append_task_event(plan.task_id, "agent", f"Agent '{agent_name}' executing")
 
             try:
-                callback = DashboardCallback(task_id=plan.task_id)
-                agent = self._registry.create_agent(agent_name, callback_handler=callback)
+                agent = self._registry.create_agent(agent_name)
             except KeyError as e:
                 logger.error("Agent not found: %s", e)
                 results.append({
