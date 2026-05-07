@@ -170,9 +170,9 @@ def push_and_create_pr(workspace: WorkspaceContext, title: str, body: str) -> di
     if not result.strip():
         return {"error": "No commits to push", "pr_url": ""}
 
-    # Push the branch
+    # Push the branch (force-with-lease for retry safety — feature branches only)
     push_result = subprocess.run(
-        ["git", "push", "-u", "origin", workspace.branch_name],
+        ["git", "push", "--force-with-lease", "-u", "origin", workspace.branch_name],
         capture_output=True, text=True, timeout=60, cwd=repo_path,
     )
     if push_result.returncode != 0:
