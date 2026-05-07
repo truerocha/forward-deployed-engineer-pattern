@@ -123,6 +123,7 @@ body{background:var(--bg);font-family:var(--font);color:var(--text);height:100vh
       <span>Autonomous Units</span>
       <span class="cf-agents__capacity" id="agent-capacity">0 provisioned</span>
     </div>
+    <div id="dora-bar" style="padding:4px 16px;font-family:var(--mono);font-size:9px;color:var(--text-muted);border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap"></div>
     <div class="cf-agents__list" id="agent-list"></div>
   </aside>
   <main class="cf-flow">
@@ -165,7 +166,7 @@ async function refreshData(){
     if(!r.ok){addLog('SYSTEM',`API ${r.status}`,'warn');return}
     const d=await r.json();
     renderStats(d.metrics);renderAgents(d.tasks);renderFlow(d.tasks);renderEvents(d.tasks);
-    renderProjectFilter(d.projects||[]);
+    renderProjectFilter(d.projects||[]);renderDora(d.dora);
     addLog('SYNC',`${d.tasks.length} tasks, ${d.metrics.active_agents||0} agents active`,'system');
     document.getElementById('health-dot').style.background='var(--success)';
     document.getElementById('health-dot').style.boxShadow='0 0 10px rgba(16,185,129,0.4)';
@@ -199,39 +200,48 @@ function renderStats(m){
   document.getElementById('agent-capacity').textContent=`${m.total_agents_provisioned||0} provisioned`;
 }
 
+function renderDora(dora){
+  if(!dora)return;
+  const el=document.getElementById('dora-bar');
+  if(!el)return;
+  const levelColors={Elite:'var(--success)',High:'var(--accent)',Medium:'var(--warning)',Low:'var(--error)'};
+  const color=levelColors[dora.level]||'var(--text-muted)';
+  el.innerHTML=`<span style="color:${color};font-weight:600">${dora.level}</span> <span>\u2502</span> <span>Lead: ${fmt(dora.lead_time_avg_ms)}</span> <span>\u2502</span> <span>Success: ${dora.success_rate_pct}%</span> <span>\u2502</span> <span>Throughput: ${dora.throughput_24h}/24h</span> <span>\u2502</span> <span>Failure: ${dora.change_failure_rate_pct}%</span>`;
+}
+
 function renderAgents(tasks){
   const c=document.getElementById('agent-list');
-  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:11px;padding:12px">No active tasks. Label a GitHub issue with <code>factory-ready</code> to start.</div>';return}
-  c.innerHTML=tasks.slice(0,8).map(t=>{
-    const st=t.status;
-    const stageIdx=t.stage_progress?.current||0;
-    const pct=t.stage_progress?.percent||0;
-    const agentId=t.agent?.instance_id||'';
-    const agentName=t.agent?.name||'awaiting';
-    const elapsed=t.elapsed_ms||t.duration_ms||0;
+  if(!tasks?.length){c.innerHTML='<div style="color:var(--text-dim);font-size:11px;padding:12px">No tasks in pipeline. Label a GitHub issue with <code>factory-ready</code> to start.</div>';return}
+  const active=tasks.filter(t=>['running','ready','pending'].includes(t.status));
+  const done=tasks.filter(t=>['completed','failed','blocked'].includes(t.status));
+  let html='';
+  if(active.length){
+    html+=active.slice(0,6).map(t=>renderAgentCard(t)).join('');
+  } else {
+    html+='<div style="color:var(--text-dim);font-size:11px;padding:12px">No active agents running.</div>';
+  }
+  if(done.length){
+    html+=`<div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-dim);padding:12px 0 4px;border-top:1px solid var(--border);margin-top:8px">History (${done.length})</div>`;
+    html+=done.slice(0,4).map(t=>renderAgentCard(t)).join('');
+  }
+  c.innerHTML=html;
+}
 
-    const timeline=STAGES.map((s,i)=>{
-      if(i<stageIdx-1)return`<div class="cf-agent-card__stage cf-agent-card__stage--done" title="${s}"></div>`;
-      if(i===stageIdx-1)return`<div class="cf-agent-card__stage cf-agent-card__stage--active" title="${s}"></div>`;
-      return`<div class="cf-agent-card__stage" title="${s}"></div>`;
-    }).join('');
-
-    const prBadge=t.pr_url?`<div style="font-size:9px;margin-top:4px"><a href="${t.pr_url}" target="_blank" style="color:var(--success);text-decoration:none">\ud83d\udd17 PR #${t.pr_url.split('/').pop()} \u2197</a></div>`:(t.workspace_error?`<div style="font-size:9px;margin-top:4px;color:var(--error)">\u26a0 ${esc(t.workspace_error.substring(0,40))}</div>`:'');
-
-    return`<div class="cf-agent-card">
-      <div class="cf-agent-card__top">
-        <span class="cf-agent-card__name" title="${esc(t.title)}">${esc((t.title||t.task_id).substring(0,30))}</span>
-        <span class="cf-agent-card__status cf-agent-card__status--${st}">${st}</span>
-      </div>
-      <div class="cf-agent-card__agent">\u26a1 ${esc(agentName)} ${agentId?'('+agentId.slice(-8)+')':''}</div>
-      <div class="cf-agent-card__timeline">${timeline}</div>
-      <div class="cf-agent-card__bar"><div class="cf-agent-card__bar-fill" style="width:${pct}%"></div></div>
-      <div class="cf-agent-card__meta">
-        <span class="cf-agent-card__stage-label">${t.current_stage||'queued'}</span>
-        <span class="cf-agent-card__elapsed">\u23f1 ${fmt(elapsed)}</span>
-      </div>${prBadge}
-    </div>`
-  }).join('')
+function renderAgentCard(t){
+  const st=t.status;
+  const stageIdx=t.stage_progress?.current||0;
+  const pct=t.stage_progress?.percent||0;
+  const agentId=t.agent?.instance_id||'';
+  const agentName=t.agent?.name||'awaiting';
+  const elapsed=(st==='running')?t.elapsed_ms||0:(st==='completed'||st==='failed')?t.duration_ms||0:0;
+  const timeline=STAGES.map((s,i)=>{
+    if(i<stageIdx-1)return`<div class="cf-agent-card__stage cf-agent-card__stage--done" title="${s}"></div>`;
+    if(i===stageIdx-1)return`<div class="cf-agent-card__stage cf-agent-card__stage--active" title="${s}"></div>`;
+    return`<div class="cf-agent-card__stage" title="${s}"></div>`;
+  }).join('');
+  const prBadge=t.pr_url?`<div style="font-size:9px;margin-top:4px"><a href="${t.pr_url}" target="_blank" style="color:var(--success);text-decoration:none">\ud83d\udd17 PR #${t.pr_url.split('/').pop()} \u2197</a></div>`:(t.workspace_error?`<div style="font-size:9px;margin-top:4px;color:var(--error)">\u26a0 ${esc(t.workspace_error.substring(0,40))}</div>`:'');
+  const elapsedStr=elapsed?`\u23f1 ${fmt(elapsed)}`:'';
+  return`<div class="cf-agent-card"><div class="cf-agent-card__top"><span class="cf-agent-card__name" title="${esc(t.title)}">${esc((t.title||t.task_id).substring(0,30))}</span><span class="cf-agent-card__status cf-agent-card__status--${st}">${st}</span></div><div class="cf-agent-card__agent">\u26a1 ${esc(agentName)} ${agentId?'('+agentId.slice(-8)+')':''}</div><div class="cf-agent-card__timeline">${timeline}</div><div class="cf-agent-card__bar"><div class="cf-agent-card__bar-fill" style="width:${pct}%"></div></div><div class="cf-agent-card__meta"><span class="cf-agent-card__stage-label">${t.current_stage||'queued'}</span><span class="cf-agent-card__elapsed">${elapsedStr}</span></div>${prBadge}</div>`
 }
 
 function renderFlow(tasks){

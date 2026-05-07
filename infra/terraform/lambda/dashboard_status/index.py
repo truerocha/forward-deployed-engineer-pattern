@@ -20,11 +20,13 @@ from boto3.dynamodb.conditions import Attr, Key
 
 TASK_QUEUE_TABLE = os.environ.get("TASK_QUEUE_TABLE", "fde-dev-task-queue")
 AGENT_LIFECYCLE_TABLE = os.environ.get("AGENT_LIFECYCLE_TABLE", "fde-dev-agent-lifecycle")
+DORA_METRICS_TABLE = os.environ.get("DORA_METRICS_TABLE", "fde-dev-dora-metrics")
 REGION = os.environ.get("AWS_REGION_NAME", os.environ.get("AWS_REGION", "us-east-1"))
 
 dynamodb = boto3.resource("dynamodb", region_name=REGION)
 task_table = dynamodb.Table(TASK_QUEUE_TABLE)
 lifecycle_table = dynamodb.Table(AGENT_LIFECYCLE_TABLE)
+dora_table = dynamodb.Table(DORA_METRICS_TABLE)
 
 # Pipeline stages in execution order (for progress visualization)
 PIPELINE_STAGES = [
@@ -135,6 +137,7 @@ def _handle_tasks(event, context):
                 "active_agents": active_agents,
                 "idle_agents": idle_agents,
             },
+            "dora": _compute_dora_summary(items),
             "tasks": tasks[:20],
             "agents": _build_agent_summary(agents),
             "projects": _extract_projects(items),
@@ -311,6 +314,48 @@ def _extract_projects(items: list) -> list:
             if item.get("status") in ("RUNNING", "IN_PROGRESS", "READY"):
                 repos[repo]["active"] += 1
     return list(repos.values())
+
+
+def _compute_dora_summary(items: list) -> dict:
+    """Compute DORA-style metrics from task data for the metrics bar.
+
+    Returns:
+        Dict with lead_time_avg_ms, success_rate_pct, throughput_24h, change_failure_rate_pct.
+    """
+    completed = [i for i in items if i.get("status") == "COMPLETED"]
+    failed = [i for i in items if i.get("status") in ("FAILED", "DEAD_LETTER")]
+    total_finished = len(completed) + len(failed)
+
+    # Lead time: average duration of completed tasks
+    durations = [int(i.get("duration_ms", 0)) for i in completed if i.get("duration_ms")]
+    lead_time_avg = int(sum(durations) / len(durations)) if durations else 0
+
+    # Success rate
+    success_rate = int((len(completed) / total_finished) * 100) if total_finished > 0 else 0
+
+    # Throughput: completed tasks in 24h
+    throughput = len(completed)
+
+    # Change failure rate
+    failure_rate = int((len(failed) / total_finished) * 100) if total_finished > 0 else 0
+
+    # DORA level classification
+    if lead_time_avg < 300000 and success_rate >= 95:  # <5min, >95%
+        level = "Elite"
+    elif lead_time_avg < 900000 and success_rate >= 85:  # <15min, >85%
+        level = "High"
+    elif lead_time_avg < 3600000 and success_rate >= 70:  # <1hr, >70%
+        level = "Medium"
+    else:
+        level = "Low"
+
+    return {
+        "lead_time_avg_ms": lead_time_avg,
+        "success_rate_pct": success_rate,
+        "throughput_24h": throughput,
+        "change_failure_rate_pct": failure_rate,
+        "level": level,
+    }
 
 
 def _compute_elapsed(item: dict) -> int:
