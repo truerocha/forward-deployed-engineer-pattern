@@ -35,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger("fde-entrypoint")
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-4-5-20250929-v1:0")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 FACTORY_BUCKET = os.environ.get("FACTORY_BUCKET", "")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 

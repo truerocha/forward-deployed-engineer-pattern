@@ -15,9 +15,9 @@ variable "environment" {
 }
 
 variable "bedrock_model_id" {
-  description = "Amazon Bedrock foundation model ID"
+  description = "Amazon Bedrock foundation model ID (use us. prefix for inference profiles)"
   type        = string
-  default     = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+  default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 }
 
 variable "enable_agentcore" {
