@@ -21,9 +21,14 @@ Data contract extraction:
   Orchestrator, which feeds it to the Constraint Extractor and Agent Builder.
 """
 
+import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
+
+import boto3
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger("fde.router")
 
@@ -117,6 +122,11 @@ class AgentRouter:
                 skip_reason="Issue not labeled 'factory-ready'",
             )
 
+        # COE-011: When triggered via flat env vars (InputTransformer limitation),
+        # the issue body is not available. Fetch it from GitHub API.
+        if not issue.get("body") and issue.get("number"):
+            issue = self._fetch_github_issue(detail, issue)
+
         # Extract data contract from GitHub issue body
         contract = self._extract_github_contract(issue)
 
@@ -138,6 +148,67 @@ class AgentRouter:
             },
             data_contract=contract,
         )
+
+    def _fetch_github_issue(self, detail: dict, issue: dict) -> dict:
+        """Fetch the full issue from GitHub API when body is missing.
+
+        COE-011: The flat env vars InputTransformer pattern cannot pass the
+        issue body (too large/complex for ECS environment variables). Instead,
+        we fetch it at runtime using the GitHub PAT from Secrets Manager.
+
+        Args:
+            detail: The event detail containing repository info.
+            issue: The partial issue dict (has number, title, labels but no body).
+
+        Returns:
+            The enriched issue dict with body populated from GitHub API.
+        """
+        repo_full_name = detail.get("repository", {}).get("full_name", "")
+        issue_number = issue.get("number")
+
+        if not repo_full_name or not issue_number:
+            logger.warning("Cannot fetch issue: missing repo (%s) or number (%s)", repo_full_name, issue_number)
+            return issue
+
+        try:
+            # Fetch GitHub PAT from Secrets Manager (ADR-014: fetch-use-discard)
+            secrets_id = os.environ.get("SECRETS_ID", f"fde-{os.environ.get('ENVIRONMENT', 'dev')}/alm-tokens")
+            secrets_client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+            secret_value = secrets_client.get_secret_value(SecretId=secrets_id)
+            tokens = json.loads(secret_value["SecretString"])
+            github_pat = tokens.get("github_pat", "")
+
+            if not github_pat:
+                logger.warning("GitHub PAT not configured in Secrets Manager — cannot fetch issue body")
+                return issue
+
+            # Fetch issue from GitHub API
+            import urllib.request
+            url = f"https://api.github.com/repos/{repo_full_name}/issues/{issue_number}"
+            req = urllib.request.Request(url, headers={
+                "Authorization": f"Bearer {github_pat}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            })
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                github_issue = json.loads(resp.read().decode())
+
+            logger.info("Fetched issue #%s from %s (body length: %d chars)",
+                        issue_number, repo_full_name, len(github_issue.get("body", "") or ""))
+
+            # Merge: keep labels from event (most current), take body from API
+            enriched = {**issue}
+            enriched["body"] = github_issue.get("body", "")
+            if not enriched.get("labels"):
+                enriched["labels"] = github_issue.get("labels", [])
+            return enriched
+
+        except ClientError as e:
+            logger.error("Secrets Manager error fetching GitHub PAT: %s", e)
+            return issue
+        except Exception as e:
+            logger.error("Failed to fetch issue #%s from GitHub: %s", issue_number, e)
+            return issue
 
     def _extract_github_contract(self, issue: dict) -> dict:
         """Extract the canonical data contract from a GitHub issue.
