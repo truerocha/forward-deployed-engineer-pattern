@@ -5,7 +5,6 @@ import {
   Eye, 
   ShieldCheck, 
   HeartPulse,
-  Zap,
   Sun,
   Moon,
   Database,
@@ -190,8 +189,8 @@ export default function App() {
         aria-label="Side navigation"
         className="w-16 bg-bg-card border-r border-border-main flex flex-col items-center py-6 shrink-0 relative transition-colors duration-300"
       >
-        <div className="w-10 h-10 bg-aws-orange rounded-lg flex items-center justify-center text-white font-bold mb-8">
-          <Zap className="w-6 h-6 fill-white" aria-hidden="true" />
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-8 overflow-hidden">
+          <img src="/img/proserve-logo.png" alt="ProServe" className="w-10 h-10 object-contain" />
         </div>
         
         <nav className="flex-1 flex flex-col gap-2">
