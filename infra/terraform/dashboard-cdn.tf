@@ -29,6 +29,28 @@ resource "aws_cloudfront_distribution" "dashboard" {
     origin_path              = "/dashboard"
   }
 
+  # Hashed assets (JS/CSS) — immutable, long cache
+  ordered_cache_behavior {
+    path_pattern           = "/assets/*"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "dashboard-s3"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 31536000
+    default_ttl = 31536000
+    max_ttl     = 31536000
+  }
+
+  # Default behavior (index.html) — short cache for fast deploys
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
@@ -44,8 +66,23 @@ resource "aws_cloudfront_distribution" "dashboard" {
     }
 
     min_ttl     = 0
-    default_ttl = 300
-    max_ttl     = 3600
+    default_ttl = 60
+    max_ttl     = 300
+  }
+
+  # SPA fallback: return index.html for 403/404 (hash-based routing)
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
   }
 
   restrictions {

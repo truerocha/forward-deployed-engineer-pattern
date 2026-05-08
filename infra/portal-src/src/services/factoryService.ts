@@ -51,6 +51,7 @@ export interface DashboardData {
     change_failure_rate_pct: number;
   } | null;
   tasks: Task[];
+  agents: { instance_id: string; name: string; task_id: string; status: string; started_at: string; execution_time_ms: number }[];
   projects: { repo: string; display_name: string; task_count: number; active: number }[];
 }
 

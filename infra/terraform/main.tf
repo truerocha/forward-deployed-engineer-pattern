@@ -393,6 +393,9 @@ resource "aws_ecs_task_definition" "strands_agent" {
       environment = [
         { name = "AWS_REGION", value = local.region },
         { name = "BEDROCK_MODEL_ID", value = var.bedrock_model_id },
+        { name = "BEDROCK_MODEL_REASONING", value = var.bedrock_model_reasoning },
+        { name = "BEDROCK_MODEL_STANDARD", value = var.bedrock_model_standard },
+        { name = "BEDROCK_MODEL_FAST", value = var.bedrock_model_fast },
         { name = "FACTORY_BUCKET", value = aws_s3_bucket.factory_artifacts.id },
         { name = "ENVIRONMENT", value = var.environment },
         { name = "PROMPT_REGISTRY_TABLE", value = aws_dynamodb_table.prompt_registry.name },

@@ -38,6 +38,13 @@ import { LiveTimeline } from './components/LiveTimeline';
 import { HumanInputCard } from './components/HumanInputCard';
 import factoryConfig from './factory-config.json';
 import { useTranslation } from 'react-i18next';
+import {
+  mapDoraMetrics,
+  mapCostMetrics,
+  mapGateHistory,
+  mapLiveTimeline,
+  mapSquadExecution,
+} from './mappers/factoryDataMapper';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -435,18 +442,18 @@ export default function App() {
             <div className="flex-1 flex flex-col overflow-hidden overflow-y-auto">
               <PersonaRouter>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
-                  <DoraCard />
-                  <CostCard />
+                  <DoraCard metrics={mapDoraMetrics(factoryData)} />
+                  <CostCard summary={mapCostMetrics(factoryData)} />
                   <ValueStreamCard />
                   <MaturityRadar />
                   <BrainSimCard />
                   <TrustCard />
                   <NetFrictionCard />
                   <GateFeedbackCard />
-                  <GateHistoryCard />
+                  <GateHistoryCard history={mapGateHistory(factoryData)} />
                   <DataQualityCard />
-                  <SquadExecutionCard />
-                  <LiveTimeline events={[]} />
+                  <SquadExecutionCard agents={mapSquadExecution(factoryData)} />
+                  <LiveTimeline events={mapLiveTimeline(factoryData)} />
                   <HumanInputCard onRespond={() => {}} />
                 </div>
               </PersonaRouter>

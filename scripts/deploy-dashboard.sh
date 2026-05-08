@@ -24,18 +24,36 @@ set -uo pipefail
 REGION="${AWS_REGION:-us-east-1}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 TF_DIR="infra/terraform"
-DASHBOARD_SRC="infra/dashboard/index.html"
+PORTAL_SRC="infra/portal-src"
+DASHBOARD_DIR="infra/dashboard"
+DASHBOARD_SRC="$DASHBOARD_DIR/index.html"
+BUILD_FIRST=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
     --profile) export AWS_PROFILE="$2"; shift 2 ;;
     --region) REGION="$2"; shift 2 ;;
-    *) echo "Usage: bash scripts/deploy-dashboard.sh [--profile PROFILE]"; exit 1 ;;
+    --build) BUILD_FIRST=true; shift ;;
+    *) echo "Usage: bash scripts/deploy-dashboard.sh [--profile PROFILE] [--build]"; exit 1 ;;
   esac
 done
 
 echo "━━━ Deploy Dashboard ━━━"
+
+# 0. Optionally rebuild portal from source
+if [[ "$BUILD_FIRST" == "true" ]]; then
+  echo "  → Building portal from source ($PORTAL_SRC)..."
+  if ! (cd "$PORTAL_SRC" && npm run build); then
+    echo "  ❌ Portal build failed"
+    exit 1
+  fi
+  # Sync build output to dashboard directory
+  rm -rf "$DASHBOARD_DIR/assets"
+  cp -r "$PORTAL_SRC/dist/assets" "$DASHBOARD_DIR/assets"
+  cp "$PORTAL_SRC/dist/index.html" "$DASHBOARD_DIR/index.html"
+  echo "  ✅ Portal built and synced to $DASHBOARD_DIR"
+fi
 
 # 1. Resolve values from Terraform outputs (no hardcoded IDs)
 echo "  → Reading terraform outputs..."
@@ -62,17 +80,38 @@ echo "  ✅ Bucket: $BUCKET"
 echo "  → Injecting API URL into dashboard..."
 TEMP_DIR="/tmp/dashboard-deploy-$$"
 mkdir -p "$TEMP_DIR"
-cp -r "$(dirname "$DASHBOARD_SRC")/"* "$TEMP_DIR/"
+cp -r "$DASHBOARD_DIR/"* "$TEMP_DIR/"
 sed -i.bak "s|<meta name=\"factory-api-url\" content=\"\">|<meta name=\"factory-api-url\" content=\"$API_URL\">|" \
   "$TEMP_DIR/index.html"
 rm -f "$TEMP_DIR/index.html.bak"
 
 # 3. Upload with SSE-S3 (required for CloudFront OAC — KMS blocks OAC reads)
 echo "  → Syncing dashboard to s3://$BUCKET/dashboard/ (SSE-S3)..."
-aws s3 sync "$TEMP_DIR/" "s3://$BUCKET/dashboard/" \
+
+# Sync HTML files with text/html content type
+aws s3 cp "$TEMP_DIR/index.html" "s3://$BUCKET/dashboard/index.html" \
   --sse AES256 \
-  --delete \
+  --content-type "text/html; charset=utf-8" \
+  --cache-control "no-cache, no-store, must-revalidate" \
   --region "$REGION" >/dev/null
+
+# Sync JS assets with immutable cache (content-hashed filenames)
+if [[ -d "$TEMP_DIR/assets" ]]; then
+  aws s3 sync "$TEMP_DIR/assets/" "s3://$BUCKET/dashboard/assets/" \
+    --sse AES256 \
+    --cache-control "public, max-age=31536000, immutable" \
+    --delete \
+    --region "$REGION" >/dev/null
+fi
+
+# Sync images if present
+if [[ -d "$TEMP_DIR/img" ]]; then
+  aws s3 sync "$TEMP_DIR/img/" "s3://$BUCKET/dashboard/img/" \
+    --sse AES256 \
+    --cache-control "public, max-age=86400" \
+    --delete \
+    --region "$REGION" >/dev/null
+fi
 
 rm -rf "$TEMP_DIR"
 

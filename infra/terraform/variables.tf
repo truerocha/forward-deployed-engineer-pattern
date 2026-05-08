@@ -20,6 +20,24 @@ variable "bedrock_model_id" {
   default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 }
 
+variable "bedrock_model_reasoning" {
+  description = "Bedrock model for reasoning-tier agents (architect, adversarial, security review)"
+  type        = string
+  default     = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+}
+
+variable "bedrock_model_standard" {
+  description = "Bedrock model for standard-tier agents (developer, code analysis, intake)"
+  type        = string
+  default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+}
+
+variable "bedrock_model_fast" {
+  description = "Bedrock model for fast-tier agents (reporting, committer, cost analysis)"
+  type        = string
+  default     = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+}
+
 variable "enable_agentcore" {
   description = "Enable Amazon Bedrock AgentCore Runtime integration"
   type        = bool

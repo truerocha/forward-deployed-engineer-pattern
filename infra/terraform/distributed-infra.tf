@@ -43,6 +43,9 @@ module "ecs_distributed" {
   log_group_name      = aws_cloudwatch_log_group.factory.name
   aws_region          = local.region
   bedrock_model_id    = var.bedrock_model_id
+  bedrock_model_reasoning = var.bedrock_model_reasoning
+  bedrock_model_standard  = var.bedrock_model_standard
+  bedrock_model_fast      = var.bedrock_model_fast
   artifacts_bucket    = aws_s3_bucket.factory_artifacts.id
 
   # EFS integration

@@ -96,6 +96,24 @@ variable "bedrock_model_id" {
   type        = string
 }
 
+variable "bedrock_model_reasoning" {
+  description = "Bedrock model for reasoning-tier agents"
+  type        = string
+  default     = ""
+}
+
+variable "bedrock_model_standard" {
+  description = "Bedrock model for standard-tier agents"
+  type        = string
+  default     = ""
+}
+
+variable "bedrock_model_fast" {
+  description = "Bedrock model for fast-tier agents"
+  type        = string
+  default     = ""
+}
+
 variable "agent_cpu" {
   description = "CPU units for agent tasks (1024 = 1 vCPU)"
   type        = string
@@ -149,6 +167,9 @@ resource "aws_ecs_task_definition" "agent" {
         { name = "AWS_REGION", value = var.aws_region },
         { name = "ENVIRONMENT", value = var.environment },
         { name = "BEDROCK_MODEL_ID", value = var.bedrock_model_id },
+        { name = "BEDROCK_MODEL_REASONING", value = var.bedrock_model_reasoning },
+        { name = "BEDROCK_MODEL_STANDARD", value = var.bedrock_model_standard },
+        { name = "BEDROCK_MODEL_FAST", value = var.bedrock_model_fast },
         { name = "SCD_TABLE", value = var.scd_table_name },
         { name = "METRICS_TABLE", value = var.metrics_table_name },
         { name = "MEMORY_TABLE", value = var.memory_table_name },
