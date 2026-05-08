@@ -122,7 +122,9 @@ export const RegistriesCard: React.FC = () => {
         category: 'Models',
         icon: Database,
         items: [
-          { name: 'Claude Sonnet 4.5', version: '2025-09', status: 'ready', details: 'Bedrock / us-east-1' },
+          { name: 'Claude Sonnet 4', version: '2025-05', status: 'ready', details: 'Reasoning tier / architect, adversarial, security' },
+          { name: 'Claude Sonnet 4.5', version: '2025-09', status: 'ready', details: 'Standard tier / developer, intake, code analysis' },
+          { name: 'Claude Haiku 4.5', version: '2025-10', status: 'ready', details: 'Fast tier / reporting, committer, cost' },
         ]
       });
 
