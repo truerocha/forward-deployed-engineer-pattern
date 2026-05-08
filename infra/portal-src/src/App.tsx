@@ -189,8 +189,8 @@ export default function App() {
         aria-label="Side navigation"
         className="w-16 bg-bg-card border-r border-border-main flex flex-col items-center py-6 shrink-0 relative transition-colors duration-300"
       >
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-8 overflow-hidden bg-white p-1">
-          <img src="/img/AWS_ProServe_logo_v2.svg" alt="AWS Professional Services" className="w-8 h-8 object-contain" />
+        <div className="w-10 h-10 bg-aws-orange rounded-lg flex items-center justify-center text-white font-bold mb-8">
+          <Play className="w-5 h-5 fill-white" aria-hidden="true" />
         </div>
         
         <nav className="flex-1 flex flex-col gap-2">

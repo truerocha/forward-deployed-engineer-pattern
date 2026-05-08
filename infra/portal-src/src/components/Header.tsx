@@ -11,13 +11,11 @@ export const Header: React.FC<HeaderProps> = ({ isProcessing }) => {
 
   return (
     <header className="flex items-center justify-between mb-8 pb-4 shrink-0 transition-colors duration-300">
-      <div className="flex items-center gap-3">
-        <img src="/img/AWS_ProServe_logo_v2.svg" alt="AWS Professional Services" className="h-10 w-auto hidden lg:block" />
-        <div className="h-8 w-[1px] bg-border-main hidden lg:block"></div>
-        <h1 className="text-2xl font-bold tracking-tight text-dynamic">
-          CODE_<span className="text-aws-orange">FACTORY</span> 
-          <span className="text-slate-500 font-light mx-3">/</span> 
-          <span className="text-xs uppercase tracking-[0.2em] text-secondary-dynamic font-bold">{t('app.title')}</span>
+      <div className="flex items-center gap-4">
+        <img src="/img/AWS_ProServe_logo_v2.svg" alt="AWS Professional Services" className="h-12 w-auto" />
+        <div className="h-8 w-[1px] bg-border-main"></div>
+        <h1 className="text-xl font-bold tracking-tight text-dynamic">
+          CODE_<span className="text-aws-orange">FACTORY</span>
         </h1>
       </div>
       <div className="flex gap-6 items-center">
