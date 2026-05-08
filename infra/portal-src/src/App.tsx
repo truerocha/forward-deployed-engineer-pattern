@@ -68,6 +68,36 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setFactoryData(data);
+
+        // Hydrate reasoning logs from API events (survives page refresh)
+        if (data.tasks && data.tasks.length > 0) {
+          const apiLogs: LogEntry[] = [];
+          for (const task of data.tasks) {
+            if (task.events && task.events.length > 0) {
+              for (const ev of task.events) {
+                apiLogs.push({
+                  id: `${task.task_id}-${ev.ts}`,
+                  timestamp: ev.ts ? new Date(ev.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '',
+                  agentId: task.agent?.instance_id || 'system',
+                  agentName: task.agent?.name || 'System',
+                  message: ev.msg || '',
+                  type: ev.type === 'gate' ? (ev.gate_result === 'pass' ? 'action' : 'error') :
+                        ev.type === 'error' ? 'error' :
+                        ev.type === 'agent' ? 'working' :
+                        'system',
+                });
+              }
+            }
+          }
+          if (apiLogs.length > 0) {
+            setLogs(prev => {
+              // Merge: keep API logs + any locally-generated logs not from API
+              const apiIds = new Set(apiLogs.map(l => l.id));
+              const localOnly = prev.filter(l => !apiIds.has(l.id));
+              return [...apiLogs, ...localOnly];
+            });
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to fetch factory data:', err);
