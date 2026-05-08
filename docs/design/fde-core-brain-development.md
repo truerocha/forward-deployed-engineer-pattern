@@ -46,10 +46,10 @@ This document merges four complementary inputs into a single coherent, deploymen
 | 1.10 | Create Orchestrator ECS Task Definition | `infra/terraform/modules/ecs/orchestrator_task_def.tf` | CREATE | 1.09 | ✅ |
 | 1.11 | Implement distributed_orchestrator.py | `src/core/orchestration/distributed_orchestrator.py` | CREATE | 1.10 | ✅ |
 | 1.12 | Implement agent_runner.py | `src/core/orchestration/agent_runner.py` | CREATE | 1.09 | ✅ |
-| 1.13 | Implement cost_tracker.py | `src/core/metrics/cost_tracker.py` | CREATE | 1.05 | ☐ |
-| 1.14 | Update dora_metrics.py (autonomy_level dimension) | `src/core/metrics/dora_metrics.py` | MODIFY | 1.05 | ☐ |
-| 1.15 | Implement verification_metrics.py | `src/core/metrics/verification_metrics.py` | CREATE | 1.05 | ☐ |
-| 1.16 | Implement vsm_tracker.py | `src/core/metrics/vsm_tracker.py` | CREATE | 1.05 | ☐ |
+| 1.13 | Implement cost_tracker.py | `src/core/metrics/cost_tracker.py` | CREATE | 1.05 | ✅ |
+| 1.14 | Update dora_metrics.py (autonomy_level dimension) | `src/core/metrics/dora_metrics.py` | MODIFY | 1.05 | ✅ |
+| 1.15 | Implement verification_metrics.py | `src/core/metrics/verification_metrics.py` | CREATE | 1.05 | ✅ |
+| 1.16 | Implement vsm_tracker.py | `src/core/metrics/vsm_tracker.py` | CREATE | 1.05 | ✅ |
 | 1.17 | Implement anti_instability_loop.py | `src/core/governance/anti_instability_loop.py` | CREATE | 1.14 | ☐ |
 | 1.18 | Create starter profile | `.kiro/profiles/starter.json` | CREATE | None | ☐ |
 | 1.19 | Create standard profile | `.kiro/profiles/standard.json` | CREATE | 1.18 | ☐ |
