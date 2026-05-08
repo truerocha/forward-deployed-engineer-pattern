@@ -103,8 +103,8 @@ This document merges four complementary inputs into a single coherent, deploymen
 | 3.14 | Implement gate_optimizer.py | `src/core/governance/gate_optimizer.py` | CREATE | 1.05 (metrics table) | ✅ |
 | 3.15 | Update repo_onboarding_agent (maturity + archetype) | `src/agents/onboarding/repo_onboarding_agent.py` | MODIFY | 3.13 | ✅ |
 | 3.16 | Create Bedrock KB Terraform module | `infra/terraform/modules/bedrock_kb/main.tf` | CREATE | Pre-flight (model access) | ✅ |
-| 3.17 | Terraform apply Bedrock KB | `infra/terraform/modules/bedrock_kb/` | DEPLOY | 3.16 | ☐ |
-| 3.18 | Run memory migration | `scripts/migrate_memory.py` (execute) | EXECUTE | 3.12, 3.17 | ☐ |
+| 3.17 | Terraform apply Bedrock KB | `infra/terraform/modules/bedrock_kb/` | DEPLOY | 3.16 | ⏳ |
+| 3.18 | Run memory migration | `scripts/migrate_memory.py` (execute) | EXECUTE | 3.12, 3.17 | ⏳ |
 | 3.19 | Implement happy_time_metric.py (O18) | `src/core/metrics/happy_time_metric.py` | CREATE | 1.16 (vsm_tracker) | ✅ |
 | 3.20 | Implement unified gate output schema (O20) | All hook prompts + `src/core/governance/gate_output_schema.py` | CREATE+MODIFY | 1.24 | ✅ |
 | 3.21 | Write training guide: effective-specs.md (O22) | `docs/training/effective-specs.md` | CREATE | None | ✅ |
@@ -124,37 +124,37 @@ This document merges four complementary inputs into a single coherent, deploymen
 | 4.03 | Implement human_input_tool.py | `src/tools/human_input_tool.py` | CREATE | 4.02 | ✅ |
 | 4.04 | Update autonomy.py (L2/L3 gating for HITL) | `src/core/autonomy.py` | MODIFY | 4.03 | ✅ |
 | 4.05 | Implement events.py (streaming event types) | `src/api/events.py` | CREATE | 4.02 | ✅ |
-| 4.06 | Terraform apply WebSocket API | `infra/terraform/modules/apigw_ws/` | DEPLOY | 4.01, 4.02 | ☐ |
-| 4.07 | Implement Portal: LiveTimeline.tsx | `infra/portal-src/components/LiveTimeline.tsx` | CREATE | 4.05, 4.06 | ☐ |
-| 4.08 | Implement Portal: HumanInputCard.tsx | `infra/portal-src/components/HumanInputCard.tsx` | CREATE | 4.03, 4.06 | ☐ |
-| 4.09 | Implement Portal: CostCard.tsx | `infra/portal-src/components/CostCard.tsx` | CREATE | 1.13 | ☐ |
-| 4.10 | Implement Portal: DoraCard.tsx (per-level) | `infra/portal-src/components/DoraCard.tsx` | CREATE | 1.14 | ☐ |
-| 4.11 | Implement Portal: ValueStreamCard.tsx | `infra/portal-src/components/ValueStreamCard.tsx` | CREATE | 1.16 | ☐ |
-| 4.12 | Implement Portal: MaturityRadar.tsx | `infra/portal-src/components/MaturityRadar.tsx` | CREATE | 3.13 | ☐ |
-| 4.13 | Implement Portal: DataQualityCard.tsx | `infra/portal-src/components/DataQualityCard.tsx` | CREATE | 3.06 | ☐ |
-| 4.14 | Implement Portal: SquadExecutionCard.tsx | `infra/portal-src/components/SquadExecutionCard.tsx` | CREATE | 1.11 | ☐ |
-| 4.15 | Implement Portal: BrainSimCard.tsx | `infra/portal-src/components/BrainSimCard.tsx` | CREATE | 2.05 | ☐ |
-| 4.16 | Implement Portal: GateFeedbackCard.tsx (O19) | `infra/portal-src/components/GateFeedbackCard.tsx` | CREATE | 1.24 | ☐ |
-| 4.17 | Implement Portal: NetFrictionCard.tsx (O14) | `infra/portal-src/components/NetFrictionCard.tsx` | CREATE | 1.26 | ☐ |
-| 4.18 | Implement Portal: TrustCard.tsx (O17) | `infra/portal-src/components/TrustCard.tsx` | CREATE | 1.27 | ☐ |
-| 4.19 | Implement Portal: GateHistoryCard.tsx (O20) | `infra/portal-src/components/GateHistoryCard.tsx` | CREATE | 3.20 | ☐ |
-| 4.20 | Implement Portal: PersonaRouter.tsx | `infra/portal-src/components/PersonaRouter.tsx` | CREATE | 4.07-4.19 | ☐ |
-| 4.21 | Integration test: WebSocket HITL flow | `tests/integration/test_hitl_websocket.py` | CREATE | 4.03, 4.04, 4.06 | ☐ |
-| 4.22 | Integration test: streaming events | `tests/integration/test_streaming_events.py` | CREATE | 4.05, 4.07 | ☐ |
-| 4.23 | Portal E2E test: all cards render | `tests/portal/test_portal_cards.py` | CREATE | 4.07-4.20 | ☐ |
+| 4.06 | Terraform apply WebSocket API | `infra/terraform/modules/apigw_ws/` | DEPLOY | 4.01, 4.02 | ⏳ |
+| 4.07 | Implement Portal: LiveTimeline.tsx | `infra/portal-src/components/LiveTimeline.tsx` | CREATE | 4.05, 4.06 | ✅ |
+| 4.08 | Implement Portal: HumanInputCard.tsx | `infra/portal-src/components/HumanInputCard.tsx` | CREATE | 4.03, 4.06 | ✅ |
+| 4.09 | Implement Portal: CostCard.tsx | `infra/portal-src/components/CostCard.tsx` | CREATE | 1.13 | ✅ |
+| 4.10 | Implement Portal: DoraCard.tsx (per-level) | `infra/portal-src/components/DoraCard.tsx` | CREATE | 1.14 | ✅ |
+| 4.11 | Implement Portal: ValueStreamCard.tsx | `infra/portal-src/components/ValueStreamCard.tsx` | CREATE | 1.16 | ✅ |
+| 4.12 | Implement Portal: MaturityRadar.tsx | `infra/portal-src/components/MaturityRadar.tsx` | CREATE | 3.13 | ✅ |
+| 4.13 | Implement Portal: DataQualityCard.tsx | `infra/portal-src/components/DataQualityCard.tsx` | CREATE | 3.06 | ✅ |
+| 4.14 | Implement Portal: SquadExecutionCard.tsx | `infra/portal-src/components/SquadExecutionCard.tsx` | CREATE | 1.11 | ✅ |
+| 4.15 | Implement Portal: BrainSimCard.tsx | `infra/portal-src/components/BrainSimCard.tsx` | CREATE | 2.05 | ✅ |
+| 4.16 | Implement Portal: GateFeedbackCard.tsx (O19) | `infra/portal-src/components/GateFeedbackCard.tsx` | CREATE | 1.24 | ✅ |
+| 4.17 | Implement Portal: NetFrictionCard.tsx (O14) | `infra/portal-src/components/NetFrictionCard.tsx` | CREATE | 1.26 | ✅ |
+| 4.18 | Implement Portal: TrustCard.tsx (O17) | `infra/portal-src/components/TrustCard.tsx` | CREATE | 1.27 | ✅ |
+| 4.19 | Implement Portal: GateHistoryCard.tsx (O20) | `infra/portal-src/components/GateHistoryCard.tsx` | CREATE | 3.20 | ✅ |
+| 4.20 | Implement Portal: PersonaRouter.tsx | `infra/portal-src/components/PersonaRouter.tsx` | CREATE | 4.07-4.19 | ✅ |
+| 4.21 | Integration test: WebSocket HITL flow | `tests/integration/test_hitl_websocket.py` | CREATE | 4.03, 4.04, 4.06 | ✅ |
+| 4.22 | Integration test: streaming events | `tests/integration/test_streaming_events.py` | CREATE | 4.05, 4.07 | ✅ |
+| 4.23 | Portal E2E test: all cards render | `tests/portal/test_portal_cards.py` | CREATE | 4.07-4.20 | ✅ |
 
 ### Wave 5: Add-Ons (Independent — Staff Engineer Decision)
 
 | Seq | Activity | Artifact (path) | Change Type | Depends On | Tracking |
 |-----|----------|-----------------|-------------|------------|----------|
-| 5.01 | Implement aidlc_adapter.py | `src/integrations/aidlc/aidlc_adapter.py` | CREATE | None (reads S3) | ☐ |
-| 5.02 | Write AI-DLC integration guide | `docs/integration/aidlc-handoff.md` | CREATE | 5.01 | ☐ |
-| 5.03 | Implement atlassian_mcp_proxy.py | `src/integrations/atlassian/atlassian_mcp_proxy.py` | CREATE | None | ☐ |
-| 5.04 | Implement Atlassian OAuth auth.py | `src/integrations/atlassian/auth.py` | CREATE | 5.03 | ☐ |
-| 5.05 | Create Atlassian Lambda Terraform | `infra/terraform/modules/atlassian/main.tf` | CREATE | 5.03, 5.04 | ☐ |
-| 5.06 | Write Atlassian setup guide | `docs/integration/atlassian-setup.md` | CREATE | 5.05 | ☐ |
-| 5.07 | Integration test: AI-DLC adapter | `tests/integration/test_aidlc_adapter.py` | CREATE | 5.01 | ☐ |
-| 5.08 | Integration test: Atlassian proxy | `tests/integration/test_atlassian_proxy.py` | CREATE | 5.03, 5.04 | ☐ |
+| 5.01 | Implement aidlc_adapter.py | `src/integrations/aidlc/aidlc_adapter.py` | CREATE | None (reads S3) | ✅ |
+| 5.02 | Write AI-DLC integration guide | `docs/integration/aidlc-handoff.md` | CREATE | 5.01 | ✅ |
+| 5.03 | Implement atlassian_mcp_proxy.py | `src/integrations/atlassian/atlassian_mcp_proxy.py` | CREATE | None | ✅ |
+| 5.04 | Implement Atlassian OAuth auth.py | `src/integrations/atlassian/auth.py` | CREATE | 5.03 | ✅ |
+| 5.05 | Create Atlassian Lambda Terraform | `infra/terraform/modules/atlassian/main.tf` | CREATE | 5.03, 5.04 | ✅ |
+| 5.06 | Write Atlassian setup guide | `docs/integration/atlassian-setup.md` | CREATE | 5.05 | ✅ |
+| 5.07 | Integration test: AI-DLC adapter | `tests/integration/test_aidlc_adapter.py` | CREATE | 5.01 | ✅ |
+| 5.08 | Integration test: Atlassian proxy | `tests/integration/test_atlassian_proxy.py` | CREATE | 5.03, 5.04 | ✅ |
 
 ### Execution Rules
 
