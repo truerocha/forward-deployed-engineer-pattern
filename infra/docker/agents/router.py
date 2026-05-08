@@ -127,6 +127,13 @@ class AgentRouter:
         if not issue.get("body") and issue.get("number"):
             issue = self._fetch_github_issue(detail, issue)
 
+        # Ensure repo is available in issue dict for data contract extraction
+        if "repository_url" not in issue:
+            repo_full_name = detail.get("repository", {}).get("full_name", "")
+            if repo_full_name:
+                issue["repository_url"] = f"https://api.github.com/repos/{repo_full_name}"
+                issue["repo"] = repo_full_name
+
         # Extract data contract from GitHub issue body
         contract = self._extract_github_contract(issue)
 
@@ -219,11 +226,20 @@ class AgentRouter:
         body = issue.get("body", "") or ""
         labels = [l.get("name", "") for l in issue.get("labels", [])]
 
+        # Extract repo from repository_url (set by _fetch_github_issue or event)
+        repo = ""
+        if "repository_url" in issue:
+            repo = issue["repository_url"].split("/repos/")[-1]
+        elif "repo" in issue:
+            repo = issue["repo"]
+
         contract: dict = {
             "task_id": f"GH-{issue.get('number', 0)}",
             "title": issue.get("title", ""),
             "description": body,
             "source": "github",
+            "repo": repo,
+            "issue_number": issue.get("number", 0),
             "type": self._extract_section_value(body, "Task Type") or "feature",
             "priority": self._extract_section_value(body, "Priority") or "P2",
             "level": self._extract_section_value(body, "Engineering Level") or "L3",
