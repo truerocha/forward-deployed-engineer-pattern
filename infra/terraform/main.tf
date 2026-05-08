@@ -262,7 +262,8 @@ resource "aws_iam_role_policy" "ecs_task_bedrock" {
         Resource = [
           "arn:aws:bedrock:${local.region}::foundation-model/${var.bedrock_model_id}",
           "arn:aws:bedrock:${local.region}:${local.account_id}:inference-profile/${var.bedrock_model_id}",
-          "arn:aws:bedrock:*::foundation-model/*"
+          "arn:aws:bedrock:*::foundation-model/*",
+          "arn:aws:bedrock:${local.region}:${local.account_id}:inference-profile/us.*"
         ]
       },
       {
