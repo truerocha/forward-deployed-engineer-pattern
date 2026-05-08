@@ -75,9 +75,9 @@ This document merges four complementary inputs into a single coherent, deploymen
 | 2.03 | Implement context_hierarchy.py | `src/core/brain_sim/context_hierarchy.py` | CREATE | 1.04 (context-hierarchy table) | ✅ |
 | 2.04 | Implement organism_ladder.py | `src/core/brain_sim/organism_ladder.py` | CREATE | 1.07 (organism table) | ✅ |
 | 2.05 | Implement brain_sim_metrics.py | `src/core/brain_sim/brain_sim_metrics.py` | CREATE | 2.01, 2.02 | ✅ |
-| 2.06 | Create fde-fidelity-agent prompt | `src/agents/fidelity/prompt.md` | CREATE | 2.01-2.05 | ☐ |
-| 2.07 | Create fde-fidelity-agent ECS task def | `infra/terraform/modules/ecs/fidelity_agent_task_def.tf` | CREATE | 2.06, 1.09 | ☐ |
-| 2.08 | Implement user_value_validator.py (DORA C6) | `src/core/governance/user_value_validator.py` | CREATE | None | ☐ |
+| 2.06 | Create fde-fidelity-agent prompt | `src/agents/fidelity/prompt.md` | CREATE | 2.01-2.05 | ✅ |
+| 2.07 | Create fde-fidelity-agent ECS task def | `infra/terraform/modules/ecs/fidelity_agent_task_def.tf` | CREATE | 2.06, 1.09 | ✅ |
+| 2.08 | Implement user_value_validator.py (DORA C6) | `src/core/governance/user_value_validator.py` | CREATE | None | ✅ |
 | 2.09 | Update DoR gate hook (user value field) | `.kiro/hooks/fde-dor-gate.kiro.hook` | MODIFY | 2.08 | ☐ |
 | 2.10 | Update DoD gate hook (user story completion) | `.kiro/hooks/fde-dod-gate.kiro.hook` | MODIFY | 2.08 | ☐ |
 | 2.11 | Integration test: fidelity scoring pipeline | `tests/integration/test_fidelity_pipeline.py` | CREATE | 2.01-2.07 | ☐ |
