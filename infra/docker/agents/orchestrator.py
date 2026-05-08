@@ -39,6 +39,12 @@ from .workspace_setup import setup_workspace, push_and_create_pr, WorkspaceConte
 from .project_registry import get_registry
 from .status_sync import StatusSync
 from .stream_callback import DashboardCallback
+from .squad_composer import (
+    should_use_dynamic_squad, compose_default_squad, compose_from_manifest_json,
+    SquadManifest, AGENT_CAPABILITIES,
+)
+from .squad_context import SquadContext, create_squad_context
+from .squad_prompts import SQUAD_PROMPTS
 from . import task_queue
 
 logger = logging.getLogger("fde.orchestrator")
@@ -265,7 +271,19 @@ class Orchestrator:
             )
 
         # ── Step 7: Agent Builder ───────────────────────────────
-        agent_names = self._build_pipeline(data_contract, extraction_result)
+        # ADR-019: Dynamic squad composition when SQUAD_MODE=dynamic
+        if should_use_dynamic_squad():
+            task_type = data_contract.get("type", "feature")
+            manifest = compose_default_squad(task_type, task_id, complexity="medium")
+            agent_names = manifest.get_all_agents()
+            task_queue.append_task_event(
+                task_id, "system",
+                f"Squad pipeline (dynamic): {' → '.join(agent_names)}",
+                phase="intake",
+            )
+        else:
+            agent_names = self._build_pipeline(data_contract, extraction_result)
+            manifest = None
         task_queue.append_task_event(
             task_id, "system",
             f"Pipeline built: {' → '.join(agent_names)}",
@@ -307,9 +325,18 @@ class Orchestrator:
 
         # ── Step 8: Execute Pipeline (inner loop with plan tracking) ──
         task_queue.update_task_stage(task_id, "reconnaissance")
-        result = self._execute_pipeline_with_plan(
-            agent_names, decision, extraction_result, dor_result, plan, gates,
-        )
+
+        # ADR-019: Use squad pipeline when in dynamic mode
+        if manifest is not None and should_use_dynamic_squad():
+            workspace_ctx_str = workspace_context if workspace.ready else ""
+            result = self._execute_squad_pipeline(
+                manifest, decision, extraction_result, task_id,
+                workspace_context=workspace_ctx_str,
+            )
+        else:
+            result = self._execute_pipeline_with_plan(
+                agent_names, decision, extraction_result, dor_result, plan, gates,
+            )
 
         # ── Step 9: Ship Readiness (if gate is active) ──────────
         if "ship_readiness" in gates.outer_gates:
@@ -490,6 +517,173 @@ class Orchestrator:
         except Exception as e:
             logger.warning("Rebase retry failed: %s", e)
             return False
+
+    # ─── Squad Pipeline Execution (ADR-019) ─────────────────────
+
+    def _execute_squad_pipeline(
+        self,
+        manifest: "SquadManifest",
+        decision: "RoutingDecision",
+        extraction_result: "ExtractionResult",
+        task_id: str,
+        workspace_context: str = "",
+    ) -> dict:
+        """Execute the dynamic squad pipeline using the Shared Context Document.
+
+        Instead of passing raw output between agents, each agent:
+        1. Reads its permitted SCD sections (structured context)
+        2. Executes with its specialized prompt
+        3. Writes its output to its designated SCD section
+
+        This prevents token explosion and ensures specification fidelity.
+
+        Args:
+            manifest: The Squad Manifest from task-intake-eval or default composition.
+            decision: The routing decision (contains the task prompt).
+            extraction_result: Constraints for injection.
+            task_id: The task identifier.
+            workspace_context: Workspace context string to inject.
+
+        Returns:
+            Result dict with pipeline execution summary.
+        """
+        from .tools import RECON_TOOLS, ENGINEERING_TOOLS, REPORTING_TOOLS
+
+        # Create the Shared Context Document for this task
+        scd = create_squad_context(task_id)
+
+        # Get execution order from manifest
+        stages = manifest.get_execution_order()
+        all_agents = manifest.get_all_agents()
+
+        logger.info(
+            "Squad pipeline: task=%s agents=%d stages=%d mode=dynamic",
+            task_id, len(all_agents), len(stages),
+        )
+        task_queue.append_task_event(
+            task_id, "system",
+            f"Squad composed: {' → '.join(all_agents)} (dynamic mode)",
+            phase="intake",
+        )
+
+        results: list[dict] = []
+        constraints = extraction_result.constraints if extraction_result else []
+
+        # Tool set mapping
+        _TOOL_MAP = {
+            "RECON_TOOLS": RECON_TOOLS,
+            "ENGINEERING_TOOLS": ENGINEERING_TOOLS,
+            "REPORTING_TOOLS": REPORTING_TOOLS,
+        }
+
+        for stage in stages:
+            # Each stage is a list of agents (parallel within stage, sequential between stages)
+            for agent_role in stage:
+                logger.info("Squad executing: %s", agent_role)
+
+                # Resolve prompt (from SQUAD_PROMPTS or Prompt Registry)
+                base_prompt = SQUAD_PROMPTS.get(agent_role, "")
+                if not base_prompt:
+                    logger.warning("No prompt for agent %s — skipping", agent_role)
+                    continue
+
+                # Build the full prompt: base + SCD context + workspace + constraints
+                scd_context = scd.read_for_agent(agent_role)
+                full_prompt = base_prompt
+
+                if scd_context:
+                    full_prompt += f"\n\n{scd_context}"
+
+                if workspace_context:
+                    full_prompt += f"\n\n{workspace_context}"
+
+                if constraints:
+                    from .agent_builder import _build_constraints_block
+                    full_prompt += f"\n\n{_build_constraints_block(constraints)}"
+
+                # Add the task prompt (from the issue/spec)
+                full_prompt += f"\n\n## Task Specification\n\n{decision.prompt}"
+
+                # Resolve tools for this agent
+                capability = AGENT_CAPABILITIES.get(agent_role, {})
+                tool_key = capability.get("tools", "RECON_TOOLS")
+                tools = list(_TOOL_MAP.get(tool_key, RECON_TOOLS))
+
+                # Register transient agent definition
+                agent_name = f"{agent_role}-{task_id}"
+                defn = AgentDefinition(
+                    name=agent_name,
+                    system_prompt=full_prompt,
+                    tools=tools,
+                    description=f"Squad {agent_role} for task {task_id}",
+                )
+                self._registry.register(defn)
+
+                # Update dashboard
+                task_queue.update_task_stage(task_id, agent_role.split("-")[0])
+                task_queue.append_task_event(
+                    task_id, "system",
+                    f"▶ Squad agent: {agent_role}",
+                    phase=agent_role,
+                )
+
+                # Create callback and execute
+                callback = DashboardCallback(task_id=task_id)
+
+                try:
+                    agent = self._registry.create_agent(agent_name, callback_handler=callback)
+                    result = agent(full_prompt)
+                    message = str(result.message) if hasattr(result, "message") else str(result)
+
+                    # Write output to SCD
+                    scd.write_from_agent(agent_role, message)
+
+                    # Write result to S3
+                    self._write_result(agent_name, decision.metadata, message)
+
+                    results.append({
+                        "agent_name": agent_role,
+                        "status": "completed",
+                        "message_length": len(message),
+                    })
+
+                    task_queue.append_task_event(
+                        task_id, "system",
+                        f"✅ {agent_role} complete ({len(message)} chars)",
+                        phase=agent_role,
+                    )
+
+                except Exception as e:
+                    logger.error("Squad agent %s failed: %s", agent_role, e)
+                    task_queue.append_task_event(
+                        task_id, "error",
+                        f"❌ {agent_role} failed: {str(e)[:120]}",
+                        phase=agent_role,
+                    )
+                    results.append({
+                        "agent_name": agent_role,
+                        "status": "error",
+                        "error": str(e),
+                    })
+                    # Don't break — try remaining agents (graceful degradation)
+                    continue
+
+        all_completed = all(r["status"] == "completed" for r in results)
+
+        # Log SCD summary for observability
+        scd_summary = scd.get_summary()
+        logger.info("SCD summary: %s", json.dumps(scd_summary, default=str))
+
+        return {
+            "status": "completed" if all_completed else "partial",
+            "pipeline": results,
+            "squad_mode": "dynamic",
+            "squad_manifest": manifest.to_dict(),
+            "scd_summary": scd_summary,
+            "constraints_extracted": len(constraints),
+            "metadata": decision.metadata,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     def handle_spec(self, spec_content: str, spec_path: str) -> dict:
         """Handle a direct spec execution.
