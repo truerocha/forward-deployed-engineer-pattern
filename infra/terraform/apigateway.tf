@@ -11,7 +11,15 @@ resource "aws_apigatewayv2_api" "webhook" {
   name          = "${local.name_prefix}-webhook-api"
   protocol_type = "HTTP"
   description   = "Receives ALM webhooks and forwards to EventBridge for agent orchestration"
-  tags          = { Component = "apigateway" }
+
+  cors_configuration {
+    allow_origins = ["https://${aws_cloudfront_distribution.dashboard.domain_name}", "http://localhost:3000"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["Content-Type", "Accept"]
+    max_age       = 3600
+  }
+
+  tags = { Component = "apigateway" }
 }
 
 resource "aws_apigatewayv2_stage" "webhook" {

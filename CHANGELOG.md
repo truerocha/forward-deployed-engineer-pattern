@@ -10,9 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added — Branch Evaluation Agent (ADR-018)
 - `infra/docker/agents/branch_evaluation/` — 7-module evaluation engine: artifact classifier (9 types, prefix/suffix matching), scoring engine (7 dimensions, weighted aggregate, veto rules, auto-merge eligibility), code evaluator (D1 structural, D2 convention, D3 backward compat, D5 test coverage, D7 documentation), domain evaluator (D4 alignment, D6 adversarial resilience), report renderer (markdown PR comment + JSON artifact), merge handler (auto-merge + issue-to-DONE via GitHub REST + GraphQL).
+- `infra/docker/agents/branch_evaluation/branch_evaluator.py` — Core orchestrator: git diff → classify → evaluate all 7 dimensions → produce verdict → render reports. Entry point for CLI and ECS execution.
+- `infra/docker/agents/branch_evaluation/pipeline_graph.py` — Regression surface mapping: `find_tests_for_module()`, `find_consumers()`, `find_affected_edges()`, `find_contract_tests()`, `compute_regression_surface()`. Maps changed files to pipeline edges E1-E6.
+- `scripts/evaluate_branch.py` — CLI entrypoint: `python3 scripts/evaluate_branch.py --base main --head feature/GH-42`. Exits 0 (merge eligible) or 1 (blocked). Supports --verbose, --quiet, --level, --output, --pr-comment.
+- `.github/workflows/evaluate-branch.yml` — GitHub Action on `pull_request` (opened/synchronize/reopened). Steps: checkout → setup python → run evaluation → post PR comment (idempotent update) → set check status → auto-merge for score >= 8.0 + L1/L2.
+- `.kiro/hooks/fde-branch-eval.kiro.hook` — `userTriggered` hook for local branch evaluation via Kiro agent.
+- `infra/portal-src/src/components/BranchEvaluationCard.tsx` — Portal component: 7-dimension score bars, verdict badge, merge eligibility, veto warnings. Integrated into Gates view (`#gates`). i18n: en-US, pt-BR, es.
 - `docs/adr/ADR-018-branch-evaluation-agent.md` — Architecture decision: deterministic scoring, no LLM in scoring path, auto-merge for L1/L2 with score >= 8.0.
-- `docs/flows/15-branch-evaluation.md` — Flow diagram with Mermaid (6 phases: trigger → intake → evaluate → score → decide → action).
-- `tests/test_branch_evaluation.py` — 39 integration tests covering classifier, scoring engine, evaluators, report renderer, and full E2E pipeline.
 
 ### Added — Agent Brain → Portal CoT Bridge
 - `infra/docker/agents/stream_callback.py` — Rewrote `DashboardCallback` to implement Strands SDK `__call__(**kwargs)` interface. Captures tool invocations (from `contentBlockStart` events), reasoning markers (decision/conclusion/approach keywords), and structural text (## headers, ✅/❌ markers). Batches writes (max 1/5s, max 10/buffer) to avoid DynamoDB write amplification.

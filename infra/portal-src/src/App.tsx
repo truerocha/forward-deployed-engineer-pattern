@@ -18,6 +18,7 @@ import { Header } from './components/Header';
 import { MetricsCard } from './components/MetricsCard';
 import { ComponentHealthCard } from './components/ComponentHealthCard';
 import { RegistriesCard } from './components/RegistriesCard';
+import { BranchEvaluationCard } from './components/BranchEvaluationCard';
 import { Agent, LogEntry, AppView } from './types';
 import { runAgentStep, AgentRole } from './services/factoryService';
 import factoryConfig from './factory-config.json';
@@ -343,11 +344,14 @@ export default function App() {
           )}
 
           {activeView === 'gates' && (
-            <div className="flex-1 flex flex-col items-center justify-center border border-white/5 bg-black/20 rounded-2xl">
-              <ShieldCheck className="w-16 h-16 text-slate-700 mb-4" />
-              <div className="text-center">
-                <p className="text-white font-medium mb-1">Gate Observability Matrix</p>
-                <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest">Awaiting Decision Flow for Project {factoryConfig.project_id}</p>
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
+              <BranchEvaluationCard report={factoryData?.branch_evaluation || null} />
+              <div className="flex flex-col items-center justify-center border border-white/5 bg-black/20 rounded-2xl">
+                <ShieldCheck className="w-12 h-12 text-slate-700 mb-4" />
+                <div className="text-center">
+                  <p className="text-white font-medium mb-1">Gate Observability Matrix</p>
+                  <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest">Awaiting Decision Flow for Project {factoryConfig.project_id}</p>
+                </div>
               </div>
             </div>
           )}

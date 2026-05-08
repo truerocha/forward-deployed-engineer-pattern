@@ -6,7 +6,7 @@
 > The Staff Engineer writes specs. The factory ships code.
 
 [![Tests](https://img.shields.io/badge/tests-171%20collected-brightgreen)]()
-[![Hooks](https://img.shields.io/badge/hooks-17%20(4%20V2%20%2B%2013%20V3)-blue)]()
+[![Hooks](https://img.shields.io/badge/hooks-18%20(4%20V2%20%2B%2014%20V3)-blue)]()
 [![Autonomy Level](https://img.shields.io/badge/level-L4%20Autonomous%20Factory-purple)]()
 
 ---
@@ -123,7 +123,7 @@ For each project in your manifest:
 
 See [docs/guides/fde-adoption-guide.md](docs/guides/fde-adoption-guide.md) for the full walkthrough with Next.js and Python microservice examples.
 
-## The 17 Hooks
+## The 18 Hooks
 
 | Hook | Event | Purpose | Level |
 |------|-------|---------|-------|
@@ -144,6 +144,7 @@ See [docs/guides/fde-adoption-guide.md](docs/guides/fde-adoption-guide.md) for t
 | fde-doc-gardening | userTriggered | Detect documentation drift from code | L3+ |
 | fde-golden-principles | userTriggered | Validate code against structural invariants | L3+ |
 | fde-repo-onboard | userTriggered | Phase 0 codebase reasoning (Magika + tree-sitter + Haiku) | L3+ |
+| fde-branch-eval | userTriggered | Branch evaluation: 7-dimension scoring + auto-merge gate | L3+ |
 
 ## Repo Structure
 
@@ -151,7 +152,7 @@ See [docs/guides/fde-adoption-guide.md](docs/guides/fde-adoption-guide.md) for t
 forward-deployed-engineer-pattern/
 +-- .kiro/                          # Factory template (copy to your projects)
 |   +-- steering/                   # Protocol + enterprise context
-|   +-- hooks/                      # 17 hooks (4 V2 + 13 V3)
+|   +-- hooks/                      # 18 hooks (4 V2 + 14 V3)
 |   +-- specs/                      # Working memory + holdout templates
 |   +-- notes/                      # Cross-session learning structure
 |   +-- meta/                       # Human feedback + refinement log
@@ -180,10 +181,12 @@ forward-deployed-engineer-pattern/
 |   +-- generate_reference_architecture.py
 |   +-- generate_plane_diagrams.py
 |   +-- lint_language.py
+|   +-- evaluate_branch.py         # Branch evaluation CLI (exit 0/1 based on score)
 +-- infra/
 |   +-- terraform/                  # AWS IaC (ECR, ECS, Bedrock, S3, Secrets, VPC)
 |   +-- docker/                     # Strands agent container (Dockerfile + entrypoint)
 |   |   +-- agents/                 # Agent application layer (registry, router, orchestrator, tools, prompts)
+|   |   +-- agents/branch_evaluation/ # Branch Evaluation Agent (9 modules: classifier, evaluators, scoring, reports, merge, pipeline graph)
 +-- tests/
     +-- test_fde_e2e_protocol.py    # Structural E2E test (48 tests)
     +-- test_fde_quality_threshold.py # Quality comparison test (6 tests)
@@ -256,6 +259,10 @@ The factory integrates with GitHub Actions and GitLab CI Ultimate (through mirro
 | `.kiro/hooks/fde-golden-principles.kiro.hook` | [Design: Golden Principles](docs/design/golden-principles.md) |
 | `.kiro/steering/fde.md` | [V2 Design Doc](docs/design/forward-deployed-ai-engineers.md), [Blueprint](docs/blueprint/fde-blueprint-design.md) |
 | `infra/docker/agents/onboarding/` | [ADR-015](docs/adr/ADR-015-repo-onboarding-phase-zero.md), [ADR-016](docs/adr/ADR-016-ephemeral-catalog-data-residency.md) |
+| `infra/docker/agents/branch_evaluation/` | [ADR-018](docs/adr/ADR-018-branch-evaluation-agent.md), [Flow 15](docs/flows/15-branch-evaluation.md) |
+| `.kiro/hooks/fde-branch-eval.kiro.hook` | [ADR-018](docs/adr/ADR-018-branch-evaluation-agent.md), [Flow 15](docs/flows/15-branch-evaluation.md) |
+| `.github/workflows/evaluate-branch.yml` | [ADR-018](docs/adr/ADR-018-branch-evaluation-agent.md) |
+| `scripts/evaluate_branch.py` | [ADR-018](docs/adr/ADR-018-branch-evaluation-agent.md) |
 | `infra/docker/agents/orchestrator.py` | [Flow 13](docs/flows/13-cloud-orchestration.md), [Design Document](docs/architecture/design-document.md) |
 | `scripts/provision-workspace.sh` | [Adoption Guide](docs/guides/fde-adoption-guide.md) |
 

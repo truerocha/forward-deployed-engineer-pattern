@@ -1,0 +1,12 @@
+{
+  "name": "Branch Evaluation Gate",
+  "version": "1.0.0",
+  "description": "Human-triggered evaluation of the current branch against main. Produces a deterministic quality score across 7 dimensions and a merge verdict.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Execute the Branch Evaluation Protocol against the current branch.\n\n1. Compute diff against main: `git diff --name-only main...HEAD`\n2. Classify all changed files by artifact type (schema, code, knowledge, prompt, infrastructure, documentation, test, hook)\n3. Evaluate all 7 dimensions:\n   - D1: Structural Validity (all artifacts parse/compile)\n   - D2: Convention Compliance (project patterns followed)\n   - D3: Backward Compatibility (no breaking changes)\n   - D4: Domain Alignment (WAF/FDE protocol compliance)\n   - D5: Test Coverage (tests exist and pass)\n   - D6: Adversarial Resilience (defensive coding, no injection risks)\n   - D7: Documentation (changes documented)\n4. Check veto rules (D1 < 3, D3 < 3, D4 < 3 = automatic FAIL)\n5. Compute weighted aggregate score (0-10)\n6. Apply verdict thresholds: >= 8.0 PASS, 7.0-7.9 CONDITIONAL PASS, 5.0-6.9 CONDITIONAL FAIL, < 5.0 FAIL\n7. Present the full evaluation report with score breakdown table\n\nAlternatively, run: python3 scripts/evaluate_branch.py --base main"
+  }
+}

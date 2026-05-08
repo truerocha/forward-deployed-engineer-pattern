@@ -31,6 +31,7 @@ export const RegistriesCard: React.FC = () => {
       items: [
         { name: 'fde-strands-agent', version: 'v6', status: 'ready', details: 'Fargate / 785640717688' },
         { name: 'fde-onboarding-agent', version: 'v2', status: 'ready', details: 'Fargate / 785640717688' },
+        { name: 'fde-branch-eval-agent', version: 'v1', status: 'ready', details: 'CLI + GitHub Action' },
         { name: 'fde-compliance-gate', version: 'v3', status: 'stable', details: 'Lambda / 785640717688' },
       ]
     },

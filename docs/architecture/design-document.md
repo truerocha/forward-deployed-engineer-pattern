@@ -67,7 +67,7 @@ See `docs/architecture/reference-architecture.png` for the full AWS reference ar
 | Component | Owned State | Responsibility |
 |-----------|-------------|----------------|
 | Spec Control Plane | `.kiro/specs/` | Stores work items, acceptance criteria, holdout scenarios |
-| Hook Engine | `.kiro/hooks/` (17 hooks) | Gates execution at preToolUse, postToolUse, preTask, postTask, userTriggered |
+| Hook Engine | `.kiro/hooks/` (18 hooks) | Gates execution at preToolUse, postToolUse, preTask, postTask, userTriggered |
 | Steering Context | `.kiro/steering/` + `~/.kiro/steering/` | Provides project-specific and universal context to the agent |
 | Notes System | `.kiro/notes/` + `~/.kiro/notes/shared/` | Persists cross-session knowledge with verification status |
 | Meta System | `.kiro/meta/` | Stores human feedback and prompt refinement history |
@@ -98,6 +98,10 @@ See `docs/architecture/reference-architecture.png` for the full AWS reference ar
 | Doc Gardening | `infra/docker/agents/doc_gardening.py` | Automated documentation drift detection (5 checks) |
 | Golden Principles | `infra/docker/agents/golden_principles.py` | Mechanical code quality invariants (5 principles) |
 | Repo Onboarding Agent | `infra/docker/agents/onboarding/` (13 modules), `catalogs/{owner}/{repo}/catalog.db` (S3) | Phase 0: Scans repository structure (Magika + tree-sitter), infers patterns (Haiku), persists SQLite catalog, generates project-specific FDE steering |
+| Branch Evaluation Agent | `infra/docker/agents/branch_evaluation/` (9 modules) | Automated quality gate: 7-dimension scoring, veto rules, auto-merge for L1/L2, pipeline-aware regression surface, PR comment + JSON reports |
+| Branch Evaluation CLI | `scripts/evaluate_branch.py` | CLI entrypoint for local and CI evaluation (exit 0/1) |
+| Branch Evaluation Workflow | `.github/workflows/evaluate-branch.yml` | GitHub Action: PR trigger → evaluate → comment → check status → auto-merge |
+| Branch Evaluation Hook | `.kiro/hooks/fde-branch-eval.kiro.hook` | Local userTriggered evaluation via Kiro agent |
 | IAM Validator | `scripts/validate-aws-iam.py` | Per-service AWS IAM permission checks |
 | Provision Script | `scripts/provision-workspace.sh` | Legacy manual onboarding (--global / --project) |
 

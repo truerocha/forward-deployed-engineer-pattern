@@ -59,6 +59,16 @@ const resources = {
         "title": "Chain of Thought",
         "subtitle": "Streaming Reasoning Timeline",
         "awaiting": "Awaiting activity..."
+      },
+      "branch_eval": {
+        "title": "Branch Evaluation",
+        "subtitle": "7-Dimension Quality Gate",
+        "awaiting": "Awaiting evaluation signal",
+        "merge_yes": "Merge Eligible",
+        "merge_no": "Merge Blocked",
+        "auto_merge": "Auto-Merge",
+        "files": "files",
+        "agent_label": "Branch Evaluation Agent (FDE)"
       }
     }
   },
@@ -119,6 +129,16 @@ const resources = {
         "title": "Cadeia de Pensamento",
         "subtitle": "Linha do Tempo de Raciocínio",
         "awaiting": "Aguardando atividade..."
+      },
+      "branch_eval": {
+        "title": "Avaliacao de Branch",
+        "subtitle": "Portao de Qualidade 7 Dimensoes",
+        "awaiting": "Aguardando sinal de avaliacao",
+        "merge_yes": "Merge Elegivel",
+        "merge_no": "Merge Bloqueado",
+        "auto_merge": "Auto-Merge",
+        "files": "arquivos",
+        "agent_label": "Agente de Avaliacao de Branch (FDE)"
       }
     }
   },
@@ -179,6 +199,16 @@ const resources = {
         "title": "Cadena de Pensamiento",
         "subtitle": "Línea de Tiempo de Razonamiento en Streaming",
         "awaiting": "Esperando actividad..."
+      },
+      "branch_eval": {
+        "title": "Evaluacion de Branch",
+        "subtitle": "Puerta de Calidad 7 Dimensiones",
+        "awaiting": "Esperando senal de evaluacion",
+        "merge_yes": "Merge Elegible",
+        "merge_no": "Merge Bloqueado",
+        "auto_merge": "Auto-Merge",
+        "files": "archivos",
+        "agent_label": "Agente de Evaluacion de Branch (FDE)"
       }
     }
   }

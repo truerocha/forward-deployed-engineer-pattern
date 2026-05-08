@@ -1,0 +1,142 @@
+name: Branch Evaluation Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    outputs:
+      score: ${{ steps.evaluate.outputs.score }}
+      verdict: ${{ steps.evaluate.outputs.verdict }}
+      level: ${{ steps.evaluate.outputs.level }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install evaluation dependencies
+        run: pip install jsonschema pyyaml ruff
+
+      - name: Run Branch Evaluation
+        id: evaluate
+        run: |
+          python3 scripts/evaluate_branch.py \
+            --base origin/main \
+            --head HEAD \
+            --output evaluation_report.json \
+            --pr-comment evaluation_comment.md
+
+          # Extract outputs from JSON report
+          SCORE=$(python3 -c "import json; r=json.load(open('evaluation_report.json')); print(r['aggregate_score'])")
+          VERDICT=$(python3 -c "import json; r=json.load(open('evaluation_report.json')); print(r['verdict'])")
+          MERGE=$(python3 -c "import json; r=json.load(open('evaluation_report.json')); print(str(r['merge_eligible']).lower())")
+          AUTO_MERGE=$(python3 -c "import json; r=json.load(open('evaluation_report.json')); print(str(r['auto_merge_eligible']).lower())")
+
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
+          echo "merge_eligible=$MERGE" >> $GITHUB_OUTPUT
+          echo "auto_merge_eligible=$AUTO_MERGE" >> $GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('evaluation_comment.md', 'utf8');
+
+            // Find existing evaluation comment to update (idempotent)
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.data.find(c =>
+              c.body.includes('Branch Evaluation Report')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: comment,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment,
+              });
+            }
+
+      - name: Set Check Status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('evaluation_report.json', 'utf8'));
+
+            const conclusion = report.merge_eligible ? 'success' : 'failure';
+
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Branch Evaluation Gate',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: `Score: ${report.aggregate_score.toFixed(1)}/10 - ${report.verdict}`,
+                summary: `Evaluated ${report.files_evaluated} files across ${Object.keys(report.dimensions).length} dimensions.\nMerge eligible: ${report.merge_eligible}\nAuto-merge eligible: ${report.auto_merge_eligible}`,
+              },
+            });
+
+      - name: Upload Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report
+          path: |
+            evaluation_report.json
+            evaluation_comment.md
+
+      - name: Auto-Merge (Score >= 8.0 + L1/L2)
+        if: steps.evaluate.outputs.auto_merge_eligible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const score = parseFloat('${{ steps.evaluate.outputs.score }}');
+
+            // Approve PR
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: 'APPROVE',
+              body: `Branch Evaluation Agent: PASS (${score.toFixed(1)}/10). Auto-approved.`,
+            });
+
+            // Squash merge
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              merge_method: 'squash',
+            });
