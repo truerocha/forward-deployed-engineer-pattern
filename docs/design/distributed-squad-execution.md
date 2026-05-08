@@ -323,3 +323,215 @@ Table: fde-dev-squad-scd
 - COE-020: ECS failure detection
 - `wellarchitected-serverless-applications-lens.md`: REL 5, PERF 1
 - `wellarchitected-generative-ai-lens.md`: Inference workload patterns
+
+---
+
+## AI-DLC Strategy Alignment — Gap Analysis & Remediation Plan
+
+> Source: `docs/example/Scaling AI-DLC with Partners - External FCD v1.0.pdf`
+> Analysis date: 2026-05-08
+
+### Executive Context
+
+The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native software development. It defines three phases (Inception → Construction → Operation) with human-in-the-loop at every stage. The Code Factory is the **execution platform** for this methodology. This section identifies gaps between the AI-DLC strategy and our current implementation, with concrete remediation tasks.
+
+---
+
+### Gap 1: Code Knowledge Base (Critical)
+
+#### 5W2H
+
+| Dimension | Analysis |
+|-----------|----------|
+| **What** | AI-DLC requires a "Code KB" with call graphs + vectorized business descriptions to solve precision/recall in large codebases |
+| **Why** | "Context window will never be enough" — models cannot see the entire codebase. Current grep/file-listing produces poor matches (low precision, low recall) |
+| **Who** | `swe-code-context-agent` currently does file listing and grep. Needs to query a Code KB instead |
+| **When** | Before any agent writes code — the Code KB provides the "big picture" that the context window cannot hold |
+| **Where** | New component: `code_knowledge_base/` — call graph extractor + vector store + query API |
+| **How** | Static analysis (tree-sitter AST) → call graph extraction → LLM-generated business descriptions per call graph → vectorized in Bedrock Knowledge Base |
+| **How much** | Bedrock KB: ~$5/month (dev). Tree-sitter already in requirements.txt. |
+
+#### Adversarial Challenge
+
+- "Isn't grep + file listing sufficient?" → No. The AI-DLC document explicitly states this is "What is available today commonly" and is insufficient for brownfield/large codebases. The Task 5 failure (using wrong API) is a direct consequence of not having a Code KB that maps business intent to actual code symbols.
+- "Can't the agent just read the relevant files?" → For a 500MB repo with 2000+ files, the agent cannot read everything. It needs semantic retrieval: "find the function that invokes Bedrock for question evaluation" → returns `bedrock_invoker.py:invoke_agent()` with its exact signature.
+
+#### Implementation Tasks
+
+| # | Task | Deliverable | Effort |
+|---|------|-------------|--------|
+| G1.1 | Call graph extractor using tree-sitter AST | `code_knowledge_base/call_graph_extractor.py` | 3 days |
+| G1.2 | Business description generator (LLM summarizes each call graph) | `code_knowledge_base/description_generator.py` | 2 days |
+| G1.3 | Vector store integration (Bedrock Knowledge Base or OpenSearch) | `code_knowledge_base/vector_store.py` | 3 days |
+| G1.4 | Query API for agents (semantic search: business intent → code symbols) | `code_knowledge_base/query_api.py` | 2 days |
+| G1.5 | Integration with `swe-code-context-agent` prompt | Update `squad_prompts.py` | 1 day |
+| G1.6 | Onboarding script: index a repo into Code KB | `scripts/index-code-kb.sh` | 1 day |
+
+#### Red Team
+
+- "What if the call graph is stale?" → Re-index on every PR merge (EventBridge trigger). Staleness window: max 1 PR behind.
+- "What about polyglot repos?" → Tree-sitter supports 40+ languages. Call graph extraction is language-agnostic at the AST level.
+- "What about cross-repo dependencies (microservices)?" → Phase 2: REST/gRPC call detection links call graphs across repos (the "tenuous connections" the AI-DLC document describes).
+
+---
+
+### Gap 2: Persona-Based Portal UX (High)
+
+#### 5W2H
+
+| Dimension | Analysis |
+|-----------|----------|
+| **What** | AI-DLC Platform shows "User Personas" with differentiated UX per role (PM, BA, QA, Dev, Ops) |
+| **Why** | PM needs velocity/status. SRE needs health/alerts. Dev needs reasoning/code. One-size-fits-all confuses everyone. |
+| **Who** | Portal users: PM (Flow + Gates), Staff SWE (Reasoning + Catalog), SRE (Health + Alerts) |
+| **When** | After distributed execution is live (portal needs real per-agent data to differentiate views) |
+| **Where** | `infra/portal-src/` — role-based view routing |
+| **How** | URL parameter or Cognito auth → role → filtered views. No new backend needed (same API, different frontend rendering) |
+| **How much** | Cognito: ~$0 (free tier). Frontend work: 3 days. |
+
+#### Implementation Tasks
+
+| # | Task | Deliverable | Effort |
+|---|------|-------------|--------|
+| G2.1 | Role selector in portal header (PM / SWE / SRE) | `App.tsx` role state | 1 day |
+| G2.2 | PM view: Flow + Gates + DORA metrics (hide Catalog/Health details) | Conditional rendering | 1 day |
+| G2.3 | SRE view: Health + Alerts + Agent lifecycle + ECS status | New HealthDetail component | 2 days |
+| G2.4 | Dev view: Reasoning + Catalog + Code KB query results | New CodeKBPanel component | 2 days |
+| G2.5 | (Future) Cognito auth with role claims | Terraform + portal auth | 3 days |
+
+---
+
+### Gap 3: Brownfield & Large Codebase Support (Critical)
+
+#### 5W2H
+
+| Dimension | Analysis |
+|-----------|----------|
+| **What** | AI-DLC identifies "Brownfield & Large Codebases" as a unique challenge requiring specialized solutions |
+| **Why** | "Changes span multiple systems", "expressed in business terms", "tribal knowledge impacts planning" |
+| **Who** | Users with repos >500MB, microservice architectures, legacy codebases |
+| **When** | Now — the distributed execution (EFS) enables large repos, but the agents still need Code KB to navigate them |
+| **Where** | Intersection of Gap 1 (Code KB) + distributed execution (EFS) + SCD (DynamoDB) |
+| **How** | EFS holds the repo. Code KB provides semantic navigation. SCD passes relevant context between agents. |
+| **How much** | Covered by distributed execution cost + Code KB cost. No additional infra. |
+
+#### Implementation Tasks
+
+| # | Task | Deliverable | Effort |
+|---|------|-------------|--------|
+| G3.1 | EFS workspace with large repo support (2GB+) | Part of Phase A (distributed execution) | Included |
+| G3.2 | Code KB indexing for large repos (incremental, not full re-index) | `code_knowledge_base/incremental_indexer.py` | 2 days |
+| G3.3 | Cross-system call graph linking (REST/gRPC detection) | `code_knowledge_base/cross_system_linker.py` | 3 days |
+| G3.4 | Agent prompt: "Query Code KB before reading files" instruction | Update `squad_prompts.py` | 1 day |
+
+---
+
+### Gap 4: Linguistic Impedance Mismatch (High)
+
+#### 5W2H
+
+| Dimension | Analysis |
+|-----------|----------|
+| **What** | "Code does not reflect business domain vocabulary. Searches through the code base produce poor matches." |
+| **Why** | The issue says "implement question enricher" but the code has `_invoke_converse()`, `bedrock_invoker.py`, `AgentInvocationResult`. Business terms ≠ code symbols. |
+| **Who** | `task-intake-eval-agent` and `swe-issue-code-reader-agent` — they read business language and need to find code |
+| **When** | At intake time — before any implementation starts |
+| **Where** | Code KB vector store with business descriptions |
+| **How** | Each call graph gets an LLM-generated business description. Query: "function that evaluates WAF questions using Bedrock" → returns `bedrock_invoker.invoke_agent()` with signature |
+| **How much** | Part of Code KB (Gap 1). No additional cost. |
+
+#### Implementation Tasks
+
+| # | Task | Deliverable | Effort |
+|---|------|-------------|--------|
+| G4.1 | Business description generation per call graph | Part of G1.2 | Included |
+| G4.2 | Semantic query tool for agents (`query_code_kb` Strands tool) | `tools.py` new @tool function | 1 day |
+| G4.3 | Integration in `swe-issue-code-reader-agent` prompt: "Query Code KB to find relevant functions" | Update prompt | 0.5 day |
+| G4.4 | Validation: Task 5 scenario — does the agent find `invoke_agent()` via semantic query? | Test case | 0.5 day |
+
+---
+
+### Gap 5: Mob Elaboration (Medium-High)
+
+#### 5W2H
+
+| Dimension | Analysis |
+|-----------|----------|
+| **What** | AI-DLC Phase 1 (Inception) includes "Mob Elaboration" — collaborative context building with multiple humans + AI |
+| **Why** | Complex features need multiple perspectives (PM, BA, Dev, QA) before construction starts |
+| **Who** | Human team (PM + Dev + QA) + AI (task-intake-eval-agent) |
+| **When** | Before the squad executes — during issue creation / spec writing |
+| **Where** | GitHub issue + Kiro specs + collaborative refinement |
+| **How** | Multi-turn collaborative spec refinement: humans provide intent, AI decomposes into units of work, humans validate |
+| **How much** | No infra cost — this is a workflow/methodology change, not a platform change |
+
+#### Implementation Tasks
+
+| # | Task | Deliverable | Effort |
+|---|------|-------------|--------|
+| G5.1 | "Mob Elaboration" Kiro hook: collaborative spec refinement before factory-ready label | `.kiro/hooks/fde-mob-elaboration.kiro.hook` | 1 day |
+| G5.2 | Spec template with "Units of Work" decomposition (AI-DLC terminology) | `docs/templates/unit-of-work-template.md` | 1 day |
+| G5.3 | `task-intake-eval-agent` prompt: produce Units of Work decomposition | Update prompt | 0.5 day |
+| G5.4 | Portal: show Units of Work breakdown in Flow view | Frontend component | 2 days |
+
+---
+
+### Gap 6: Measurement Framework (Medium)
+
+#### 5W2H
+
+| Dimension | Analysis |
+|-----------|----------|
+| **What** | AI-DLC prescribes "Measure End-to-End Delivery Timelines" — same project estimated traditionally vs AI-DLC |
+| **Why** | "Take the same project estimated with story points and implement it end-to-end with AI-DLC to measure velocity improvement" |
+| **Who** | PM and leadership — need quantifiable ROI |
+| **When** | After each task completes — compare actual vs estimated |
+| **Where** | DORA metrics + new velocity tracking in DynamoDB |
+| **How** | Track: estimated story points (from issue), actual duration, quality score (branch eval), tokens consumed |
+| **How much** | DynamoDB writes: negligible. Portal component: 2 days. |
+
+#### Implementation Tasks
+
+| # | Task | Deliverable | Effort |
+|---|------|-------------|--------|
+| G6.1 | Add `estimated_points` field to canonical task schema | Update `canonical-task-schema.yaml` | 0.5 day |
+| G6.2 | Velocity calculator: actual_duration / estimated_points | `dora_metrics.py` extension | 1 day |
+| G6.3 | Portal: velocity comparison chart (traditional vs AI-DLC) | New MetricsCard section | 2 days |
+| G6.4 | Per-project velocity tracking over time | DynamoDB + Lambda | 1 day |
+
+---
+
+### Consolidated Task Plan (Priority Order)
+
+| Wave | Tasks | Duration | Dependencies |
+|------|-------|----------|-------------|
+| **Wave 1: Distributed Execution** | Phase A-D (EFS, DynamoDB SCD, orchestrator rewrite) | 2 weeks | None |
+| **Wave 2: Code Knowledge Base** | G1.1-G1.6 + G3.2-G3.3 + G4.1-G4.4 | 2 weeks | Wave 1 (EFS for large repos) |
+| **Wave 3: Portal Persona UX** | G2.1-G2.5 + G5.4 + G6.3 | 1 week | Wave 1 (per-agent data) |
+| **Wave 4: Methodology Integration** | G5.1-G5.3 + G6.1-G6.2 + G6.4 | 1 week | None (parallel with Wave 2) |
+
+### Total Effort: 6 weeks (4 waves, some parallel)
+
+### Cost Impact
+
+| Component | Monthly Cost |
+|-----------|-------------|
+| Distributed execution (EFS + Fargate) | ~$21 |
+| Code KB (Bedrock KB or OpenSearch Serverless) | ~$15 |
+| Cognito (future, persona auth) | ~$0 (free tier) |
+| **Total platform cost** | **~$36/month (dev)** |
+
+---
+
+### AI-DLC Alignment Score (Post-Remediation)
+
+| Principle | Current | After Wave 1-4 |
+|-----------|---------|----------------|
+| AI orchestrates, Human validates | ✅ 100% | ✅ 100% |
+| Code KB for large codebases | ❌ 0% | ✅ 90% |
+| Persona-based UX | ❌ 10% | ✅ 80% |
+| Mob Elaboration (Inception) | ❌ 0% | ⚠️ 60% |
+| Linguistic Impedance resolution | ❌ 0% | ✅ 85% |
+| Measurement framework | ⚠️ 30% | ✅ 80% |
+| Distributed/parallel execution | ❌ 0% | ✅ 95% |
+| **Overall alignment** | **~35%** | **~85%** |
