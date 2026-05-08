@@ -358,14 +358,14 @@ The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native 
 
 #### Implementation Tasks
 
-| # | Task | Deliverable | Effort |
-|---|------|-------------|--------|
-| G1.1 | Call graph extractor using tree-sitter AST | `code_knowledge_base/call_graph_extractor.py` | 3 days |
-| G1.2 | Business description generator (LLM summarizes each call graph) | `code_knowledge_base/description_generator.py` | 2 days |
-| G1.3 | Vector store integration (Bedrock Knowledge Base or OpenSearch) | `code_knowledge_base/vector_store.py` | 3 days |
-| G1.4 | Query API for agents (semantic search: business intent → code symbols) | `code_knowledge_base/query_api.py` | 2 days |
-| G1.5 | Integration with `swe-code-context-agent` prompt | Update `squad_prompts.py` | 1 day |
-| G1.6 | Onboarding script: index a repo into Code KB | `scripts/index-code-kb.sh` | 1 day |
+| # | Task | Deliverable | CW | LOC | Model Tier | Dependencies |
+|---|------|-------------|-----|-----|-----------|-------------|
+| G1.1 | Call graph extractor using tree-sitter AST | `code_knowledge_base/call_graph_extractor.py` | 1 | ~300 | reasoning | None |
+| G1.2 | Business description generator (LLM summarizes each call graph) | `code_knowledge_base/description_generator.py` | 1 | ~200 | reasoning | G1.1 |
+| G1.3 | Vector store integration (Bedrock Knowledge Base or OpenSearch) | `code_knowledge_base/vector_store.py` | 1 | ~250 | standard | None |
+| G1.4 | Query API for agents (semantic search: business intent → code symbols) | `code_knowledge_base/query_api.py` | 1 | ~150 | standard | G1.3 |
+| G1.5 | Integration with `swe-code-context-agent` prompt | Update `squad_prompts.py` | 1 | ~50 | standard | G1.4 |
+| G1.6 | Onboarding script: index a repo into Code KB | `scripts/index-code-kb.sh` | 1 | ~80 | fast | G1.1, G1.2, G1.3 |
 
 #### Red Team
 
@@ -391,13 +391,13 @@ The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native 
 
 #### Implementation Tasks
 
-| # | Task | Deliverable | Effort |
-|---|------|-------------|--------|
-| G2.1 | Role selector in portal header (PM / SWE / SRE) | `App.tsx` role state | 1 day |
-| G2.2 | PM view: Flow + Gates + DORA metrics (hide Catalog/Health details) | Conditional rendering | 1 day |
-| G2.3 | SRE view: Health + Alerts + Agent lifecycle + ECS status | New HealthDetail component | 2 days |
-| G2.4 | Dev view: Reasoning + Catalog + Code KB query results | New CodeKBPanel component | 2 days |
-| G2.5 | (Future) Cognito auth with role claims | Terraform + portal auth | 3 days |
+| # | Task | Deliverable | CW | LOC | Model Tier | Dependencies |
+|---|------|-------------|-----|-----|-----------|-------------|
+| G2.1 | Role selector in portal header (PM / SWE / SRE) | `App.tsx` role state | 1 | ~30 | standard | None |
+| G2.2 | PM view: Flow + Gates + DORA metrics | Conditional rendering | 1 | ~80 | standard | G2.1 |
+| G2.3 | SRE view: Health + Alerts + Agent lifecycle | New HealthDetail component | 1 | ~150 | standard | G2.1 |
+| G2.4 | Dev view: Reasoning + Catalog + Code KB results | New CodeKBPanel component | 1 | ~150 | standard | G2.1, G1.4 |
+| G2.5 | Cognito auth with role claims | Terraform + portal auth | 1 | ~100 (HCL+TSX) | standard | G2.1 |
 
 ---
 
@@ -417,12 +417,12 @@ The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native 
 
 #### Implementation Tasks
 
-| # | Task | Deliverable | Effort |
-|---|------|-------------|--------|
-| G3.1 | EFS workspace with large repo support (2GB+) | Part of Phase A (distributed execution) | Included |
-| G3.2 | Code KB indexing for large repos (incremental, not full re-index) | `code_knowledge_base/incremental_indexer.py` | 2 days |
-| G3.3 | Cross-system call graph linking (REST/gRPC detection) | `code_knowledge_base/cross_system_linker.py` | 3 days |
-| G3.4 | Agent prompt: "Query Code KB before reading files" instruction | Update `squad_prompts.py` | 1 day |
+| # | Task | Deliverable | CW | LOC | Model Tier | Dependencies |
+|---|------|-------------|-----|-----|-----------|-------------|
+| G3.1 | EFS workspace with large repo support (2GB+) | Part of Phase A | — | — | — | Phase A |
+| G3.2 | Code KB indexing for large repos (incremental) | `code_knowledge_base/incremental_indexer.py` | 1 | ~200 | reasoning | G1.1 |
+| G3.3 | Cross-system call graph linking (REST/gRPC) | `code_knowledge_base/cross_system_linker.py` | 1 | ~250 | reasoning | G1.1 |
+| G3.4 | Agent prompt: "Query Code KB before reading files" | Update `squad_prompts.py` | 1 | ~30 | fast | G1.4 |
 
 ---
 
@@ -442,12 +442,12 @@ The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native 
 
 #### Implementation Tasks
 
-| # | Task | Deliverable | Effort |
-|---|------|-------------|--------|
-| G4.1 | Business description generation per call graph | Part of G1.2 | Included |
-| G4.2 | Semantic query tool for agents (`query_code_kb` Strands tool) | `tools.py` new @tool function | 1 day |
-| G4.3 | Integration in `swe-issue-code-reader-agent` prompt: "Query Code KB to find relevant functions" | Update prompt | 0.5 day |
-| G4.4 | Validation: Task 5 scenario — does the agent find `invoke_agent()` via semantic query? | Test case | 0.5 day |
+| # | Task | Deliverable | CW | LOC | Model Tier | Dependencies |
+|---|------|-------------|-----|-----|-----------|-------------|
+| G4.1 | Business description generation per call graph | Part of G1.2 | — | — | — | G1.2 |
+| G4.2 | Semantic query tool (`query_code_kb` Strands tool) | `tools.py` new @tool function | 1 | ~60 | standard | G1.4 |
+| G4.3 | Integration in `swe-issue-code-reader-agent` prompt | Update prompt | 1 | ~30 | fast | G4.2 |
+| G4.4 | Validation: Task 5 scenario (find `invoke_agent()`) | Test case | 1 | ~50 | standard | G4.2, G4.3 |
 
 ---
 
@@ -467,12 +467,12 @@ The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native 
 
 #### Implementation Tasks
 
-| # | Task | Deliverable | Effort |
-|---|------|-------------|--------|
-| G5.1 | "Mob Elaboration" Kiro hook: collaborative spec refinement before factory-ready label | `.kiro/hooks/fde-mob-elaboration.kiro.hook` | 1 day |
-| G5.2 | Spec template with "Units of Work" decomposition (AI-DLC terminology) | `docs/templates/unit-of-work-template.md` | 1 day |
-| G5.3 | `task-intake-eval-agent` prompt: produce Units of Work decomposition | Update prompt | 0.5 day |
-| G5.4 | Portal: show Units of Work breakdown in Flow view | Frontend component | 2 days |
+| # | Task | Deliverable | CW | LOC | Model Tier | Dependencies |
+|---|------|-------------|-----|-----|-----------|-------------|
+| G5.1 | "Mob Elaboration" Kiro hook | `.kiro/hooks/fde-mob-elaboration.kiro.hook` | 1 | ~20 (JSON) | fast | None |
+| G5.2 | Spec template with "Units of Work" | `docs/templates/unit-of-work-template.md` | 1 | ~60 (MD) | fast | None |
+| G5.3 | `task-intake-eval-agent` prompt: Units of Work | Update prompt | 1 | ~40 | fast | G5.2 |
+| G5.4 | Portal: Units of Work breakdown in Flow view | Frontend component | 1 | ~120 (TSX) | standard | G5.3 |
 
 ---
 
@@ -492,25 +492,26 @@ The AI-DLC (AI-Driven Development Lifecycle) is AWS's methodology for AI-native 
 
 #### Implementation Tasks
 
-| # | Task | Deliverable | Effort |
-|---|------|-------------|--------|
-| G6.1 | Add `estimated_points` field to canonical task schema | Update `canonical-task-schema.yaml` | 0.5 day |
-| G6.2 | Velocity calculator: actual_duration / estimated_points | `dora_metrics.py` extension | 1 day |
-| G6.3 | Portal: velocity comparison chart (traditional vs AI-DLC) | New MetricsCard section | 2 days |
-| G6.4 | Per-project velocity tracking over time | DynamoDB + Lambda | 1 day |
+| # | Task | Deliverable | CW | LOC | Model Tier | Dependencies |
+|---|------|-------------|-----|-----|-----------|-------------|
+| G6.1 | Add `estimated_points` to canonical task schema | Update `canonical-task-schema.yaml` | 1 | ~10 (YAML) | fast | None |
+| G6.2 | Velocity calculator | `dora_metrics.py` extension | 1 | ~80 | standard | G6.1 |
+| G6.3 | Portal: velocity comparison chart | New MetricsCard section | 1 | ~100 (TSX) | standard | G6.2 |
+| G6.4 | Per-project velocity tracking | DynamoDB + Lambda | 1 | ~120 | standard | G6.2 |
 
 ---
 
-### Consolidated Task Plan (Priority Order)
+### Consolidated Task Plan (Factory Metrics)
 
-| Wave | Tasks | Duration | Dependencies |
-|------|-------|----------|-------------|
-| **Wave 1: Distributed Execution** | Phase A-D (EFS, DynamoDB SCD, orchestrator rewrite) | 2 weeks | None |
-| **Wave 2: Code Knowledge Base** | G1.1-G1.6 + G3.2-G3.3 + G4.1-G4.4 | 2 weeks | Wave 1 (EFS for large repos) |
-| **Wave 3: Portal Persona UX** | G2.1-G2.5 + G5.4 + G6.3 | 1 week | Wave 1 (per-agent data) |
-| **Wave 4: Methodology Integration** | G5.1-G5.3 + G6.1-G6.2 + G6.4 | 1 week | None (parallel with Wave 2) |
+| Wave | Tasks | Context Windows | Total LOC | Dependencies |
+|------|-------|----------------|-----------|-------------|
+| **Wave 1: Distributed Execution** | Phase A-D (EFS, DynamoDB SCD, orchestrator rewrite) | 8 CW | ~1200 LOC | None |
+| **Wave 2: Code Knowledge Base** | G1.1-G1.6 + G3.2-G3.3 + G4.1-G4.4 | 10 CW | ~1370 LOC | Wave 1 (EFS) |
+| **Wave 3: Portal Persona UX** | G2.1-G2.5 + G5.4 + G6.3 | 6 CW | ~630 LOC (TSX) | Wave 1 (per-agent data) |
+| **Wave 4: Methodology Integration** | G5.1-G5.3 + G6.1-G6.2 + G6.4 | 5 CW | ~330 LOC | None (parallel with Wave 2) |
 
-### Total Effort: 6 weeks (4 waves, some parallel)
+### Total Effort: 29 Context Windows (~3530 LOC)
+### Estimated Factory Execution Time: 4-6 hours (parallel waves) to 12 hours (sequential)
 
 ### Cost Impact
 
