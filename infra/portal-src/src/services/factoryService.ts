@@ -38,6 +38,7 @@ export interface Task {
   source: string;
   issue_url: string;
   pr_url: string;
+  pr_error: string;
   priority: string;
   elapsed_ms: number;
   duration_ms: number;

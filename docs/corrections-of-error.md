@@ -6,6 +6,34 @@
 
 ---
 
+## COE-019: StatusSync dead code + silent PR delivery failure + no portal visibility
+
+- **Date**: 2026-05-08
+- **Severity**: Observability (P1 — pipeline completes but PM has zero visibility)
+- **Found in**: TASK-9426ff77 (GH-91 task 5) — pipeline completed all 3 stages but `git push` failed with `stale info`, no PR was created, and the portal showed no error.
+- **Root causes** (3 distinct failures):
+  1. **`StatusSync` is dead code** — The module `infra/docker/agents/status_sync.py` was written with full GitHub issue comment logic but **never imported or called** by the orchestrator. The PM gets zero visibility on the GitHub issue.
+  2. **Silent PR delivery failure** — When `push_and_create_pr()` fails, the orchestrator logged a WARNING but emitted no `append_task_event()` with type="error". The portal's Chain of Thought panel showed nothing about the failure.
+  3. **No retry on stale ref** — The push failed because the remote branch had been updated (likely by a previous retry). The orchestrator had no retry-with-rebase logic, so recoverable failures became permanent.
+- **Fixes applied**:
+  - ✅ **Integrated `StatusSync` into orchestrator** (Step 9.4) — now posts pipeline completion/failure comments to the originating GitHub issue.
+  - ✅ **Added `append_task_event(type="error")` on PR delivery failure** — the portal CoT panel now shows the push error with context.
+  - ✅ **Added `_attempt_rebase_retry()` method** — when push fails with "stale info", the orchestrator fetches + rebases onto origin/main and retries the push once.
+  - ✅ **Dashboard Lambda exposes `completed_no_delivery` status** — tasks that completed without a PR are visually distinct (amber badge, "NO PR" label).
+  - ✅ **Portal renders `pr_error` field** — amber warning icon with tooltip showing the push error.
+- **Files modified**:
+  - `infra/docker/agents/orchestrator.py` — StatusSync integration, rebase retry, error event emission
+  - `infra/terraform/lambda/dashboard_status/index.py` — `completed_no_delivery` status derivation, `pr_error` field exposure
+  - `infra/portal-src/src/App.tsx` — amber status badge, push failure indicator
+  - `infra/portal-src/src/services/factoryService.ts` — `pr_error` field in Task interface
+- **Well-Architected alignment**:
+  - OPS 6 (telemetry) — Pipeline failures now emit observable events
+  - OPS 8 (understand operational health) — Portal distinguishes "completed" from "completed-without-delivery"
+  - REL 9 (design for recovery) — Rebase retry recovers from transient stale-ref failures
+  - REL 11 (fault isolation) — Push failure no longer silently swallowed
+
+---
+
 ## COE-017: React Portal shipped without ADR, DDR update, or architecture diagram update
 
 - **Date**: 2026-05-07

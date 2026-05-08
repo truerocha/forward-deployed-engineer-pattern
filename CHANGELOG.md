@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased] — 2026-05-08
+
+### Fixed — COE-019: Observability Pipeline (StatusSync + Portal + OTEL)
+- `infra/docker/agents/orchestrator.py` — Integrated `StatusSync` (was dead code) to post structured comments to GitHub issues on pipeline complete/fail. Added rebase-retry when push fails with stale ref. Emits `append_task_event(type="error")` on PR delivery failure. Emits gate events (constraint extraction, DoR, adversarial) and stage start/complete events to DynamoDB for portal visibility.
+- `infra/docker/agents/stream_callback.py` — Expanded `DashboardCallback` reasoning markers (5→13 keywords), text markers (emojis, file ops, bold items, `#` headers), matching CloudWatch log visibility in the portal.
+- `infra/terraform/lambda/dashboard_status/index.py` — Derives `completed_no_delivery` status for tasks that completed without a PR. Exposes `pr_error` field in API response.
+- `infra/portal-src/src/App.tsx` — Amber badge "NO PR" for `completed_no_delivery` status. Push failure indicator with tooltip.
+- `infra/portal-src/src/services/factoryService.ts` — Added `pr_error` field to `Task` interface.
+- `docs/corrections-of-error.md` — COE-019 documented with 3 root causes, 5 fixes, Well-Architected alignment.
+
+### Added — OTEL Distributed Tracing (ADOT Sidecar)
+- `infra/docker/agent_entrypoint.py` — `_init_telemetry()` initializes Strands SDK OTEL (agent/cycle/tool spans). No-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset.
+- `infra/docker/requirements.txt` — Added `opentelemetry-api`, `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`, `opentelemetry-instrumentation-botocore`.
+- `infra/terraform/main.tf` — ADOT collector sidecar container (non-essential) in ECS task definition. OTEL env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SEMCONV_STABILITY_OPT_IN`). X-Ray write IAM policy for task role.
+- Architecture: Strands agent → localhost:4318 → ADOT sidecar → AWS X-Ray. Automatic spans for agent invocations, reasoning cycles, and tool calls.
+
+---
+
 ## [Unreleased] — 2026-05-07
 
 ### Added — Branch Evaluation Agent (ADR-018)

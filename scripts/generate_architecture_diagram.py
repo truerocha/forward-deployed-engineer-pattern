@@ -24,7 +24,8 @@ from diagrams.aws.integration import StepFunctions
 from diagrams.aws.ml import Bedrock
 from diagrams.aws.storage import S3
 from diagrams.onprem.client import User
-from diagrams.onprem.vcs import Github
+from diagrams.onprem.vcs import Git
+from diagrams.aws.devtools import Codepipeline
 from diagrams.aws.compute import Lambda
 from diagrams.aws.analytics import Quicksight
 import os
@@ -76,7 +77,7 @@ with Diagram(
         "Work Intake\nGitHub · Asana · GitLab · Scope Boundaries",
         graph_attr=cl("#e8f0fe", "#1a73e8", "#1565c0"),
     ):
-        alm = Github("ALM\nData Contract")
+        alm = Git("ALM\nData Contract")
 
     # 3. Spec Control Plane
     with Cluster(
@@ -111,7 +112,7 @@ with Diagram(
         "Delivery\nSemantic Commit · MR/PR · ALM Sync",
         graph_attr=cl("#e8f5e9", "#43a047", "#1b5e20"),
     ):
-        delivery = Github("MR/PR\nvia MCP")
+        delivery = Codepipeline("MR/PR\nvia MCP")
 
     # ═══ SPINE EDGES (weight=10 — Rule 4) ═══
     engineer >> Edge(

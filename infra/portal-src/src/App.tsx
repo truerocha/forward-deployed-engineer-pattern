@@ -266,6 +266,8 @@ export default function App() {
                           <div className="w-2 h-2 rounded-full bg-aws-orange animate-pulse" />
                         ) : task.status === 'completed' || task.status === 'COMPLETED' ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        ) : task.status === 'completed_no_delivery' ? (
+                          <AlertCircle className="w-4 h-4 text-amber-400" />
                         ) : task.status === 'failed' || task.status === 'FAILED' ? (
                           <AlertCircle className="w-4 h-4 text-red-400" />
                         ) : (
@@ -276,9 +278,10 @@ export default function App() {
                       <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded ${
                         task.status === 'running' || task.status === 'IN_PROGRESS' ? 'bg-aws-orange/20 text-aws-orange' :
                         task.status === 'completed' || task.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                        task.status === 'completed_no_delivery' ? 'bg-amber-500/20 text-amber-400' :
                         task.status === 'failed' || task.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
                         'bg-slate-500/20 text-slate-400'
-                      }`}>{task.current_stage || task.status}</span>
+                      }`}>{task.status === 'completed_no_delivery' ? 'NO PR' : (task.current_stage || task.status)}</span>
                     </div>
                     <div className="flex items-center gap-4 text-[10px] text-secondary-dynamic font-mono">
                       <span className="flex items-center gap-1">
@@ -287,6 +290,9 @@ export default function App() {
                       <span>{task.task_id}</span>
                       {task.pr_url && (
                         <a href={task.pr_url} target="_blank" rel="noopener noreferrer" className="text-aws-orange hover:underline">PR</a>
+                      )}
+                      {task.pr_error && !task.pr_url && (
+                        <span className="text-amber-400" title={task.pr_error}>⚠️ Push failed</span>
                       )}
                       {task.issue_url && (
                         <a href={task.issue_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Issue</a>

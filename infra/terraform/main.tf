@@ -342,6 +342,29 @@ resource "aws_iam_role_policy" "ecs_task_alm_secrets" {
   })
 }
 
+# ─── OTEL: X-Ray write permissions for ADOT sidecar ─────────────
+resource "aws_iam_role_policy" "ecs_task_xray" {
+  name = "${local.name_prefix}-xray-write"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+          "xray:GetSamplingStatisticSummaries"
+        ]
+        Resource = ["*"]
+      }
+    ]
+  })
+}
+
 # ─── VPC: Networking for ECS Fargate ─────────────────────────────
 module "vpc" {
   source = "./modules/vpc"
@@ -375,7 +398,12 @@ resource "aws_ecs_task_definition" "strands_agent" {
         { name = "PROMPT_REGISTRY_TABLE", value = aws_dynamodb_table.prompt_registry.name },
         { name = "TASK_QUEUE_TABLE", value = aws_dynamodb_table.task_queue.name },
         { name = "AGENT_LIFECYCLE_TABLE", value = aws_dynamodb_table.agent_lifecycle.name },
-        { name = "DORA_METRICS_TABLE", value = aws_dynamodb_table.dora_metrics.name }
+        { name = "DORA_METRICS_TABLE", value = aws_dynamodb_table.dora_metrics.name },
+        # OTEL distributed tracing — sends to ADOT sidecar on localhost
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://localhost:4318" },
+        { name = "OTEL_SERVICE_NAME", value = "${local.name_prefix}-strands-agent" },
+        { name = "OTEL_RESOURCE_ATTRIBUTES", value = "deployment.environment=${var.environment},service.namespace=fde-factory" },
+        { name = "OTEL_SEMCONV_STABILITY_OPT_IN", value = "gen_ai_latest_experimental" },
       ]
 
       secrets = [
@@ -391,6 +419,31 @@ resource "aws_ecs_task_definition" "strands_agent" {
           "awslogs-group"         = aws_cloudwatch_log_group.factory.name
           "awslogs-region"        = local.region
           "awslogs-stream-prefix" = "strands-agent"
+        }
+      }
+    },
+    # ADOT Sidecar — AWS Distro for OpenTelemetry Collector
+    # Receives traces from the Strands agent on localhost:4318 (OTLP/HTTP)
+    # and exports them to AWS X-Ray for distributed trace visualization.
+    # Non-essential: agent continues if ADOT fails to start.
+    {
+      name      = "adot-collector"
+      image     = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      essential = false
+
+      command = ["--config=/etc/ecs/ecs-xray.yaml"]
+
+      portMappings = [
+        { containerPort = 4317, protocol = "tcp" },
+        { containerPort = 4318, protocol = "tcp" },
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.factory.name
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "adot-collector"
         }
       }
     }

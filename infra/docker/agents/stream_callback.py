@@ -104,7 +104,12 @@ class DashboardCallback:
     def _handle_reasoning(self, text: str) -> None:
         """Handle reasoning text — capture key decision markers only."""
         # Only capture lines with structural markers (not every thinking token)
-        for marker in ["decision:", "conclusion:", "approach:", "risk:", "gate:"]:
+        markers = [
+            "decision:", "conclusion:", "approach:", "risk:", "gate:",
+            "result:", "finding:", "recommendation:", "implementation:",
+            "analysis:", "strategy:", "plan:", "summary:",
+        ]
+        for marker in markers:
             if marker in text.lower():
                 line = text.strip()[:200]
                 if line and len(line) > 15:
@@ -126,8 +131,20 @@ class DashboardCallback:
                 if stripped.startswith("## ") or stripped.startswith("### "):
                     self._buffer.append({"type": "agent", "msg": stripped[:150]})
                     self._maybe_flush()
-                elif any(m in stripped for m in ["✅", "❌", "COMPLETE", "FAILED", "BLOCKED", "PASS", "ERROR"]):
+                elif stripped.startswith("# "):
+                    self._buffer.append({"type": "agent", "msg": stripped[:150]})
+                    self._maybe_flush()
+                elif any(m in stripped for m in [
+                    "✅", "❌", "COMPLETE", "FAILED", "BLOCKED", "PASS", "ERROR",
+                    "⚠️", "🔍", "📋", "⚙️", "🧪", "📊", "🎉",
+                    "Created file", "Modified file", "Committed",
+                ]):
                     if len(stripped) > 10:
+                        self._buffer.append({"type": "agent", "msg": stripped[:150]})
+                        self._maybe_flush()
+                elif stripped.startswith("- **") or stripped.startswith("* **"):
+                    # Capture bold list items (key findings, recommendations)
+                    if len(stripped) > 20:
                         self._buffer.append({"type": "agent", "msg": stripped[:150]})
                         self._maybe_flush()
 

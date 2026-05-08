@@ -21,7 +21,8 @@ from diagrams.aws.storage import S3
 from diagrams.aws.analytics import Quicksight
 from diagrams.aws.security import SecretsManager
 from diagrams.onprem.client import User
-from diagrams.onprem.vcs import Github
+from diagrams.onprem.vcs import Git
+from diagrams.aws.devtools import Codepipeline
 import os
 
 output_dir = "docs/architecture/planes"
@@ -51,7 +52,7 @@ def generate_hero():
         graph_attr={"ranksep": "1.6", "nodesep": "0.9", "splines": "curved", "newrank": "true", "pad": "0.5"},
     ):
         with Cluster("1. Version Source Management\nGit · ALM · Branches · Isolation", graph_attr=cl("#e8f0fe", "#1a73e8", "#1a73e8")):
-            vsm = Github("Source\nManagement")
+            vsm = Git("Source\nManagement")
 
         with Cluster("2. Data Plane\nContract · Router · Queue · Storage", graph_attr=cl("#fef7e0", "#f9a825", "#f57f17")):
             data = Dynamodb("Data\nFlow")
@@ -86,7 +87,7 @@ def generate_vsm_plane():
             engineer = User("Writes Specs\nSets Autonomy")
 
         with Cluster("ALM Platforms\nGitHub · Asana · GitLab", graph_attr=cl("#e8f0fe", "#1a73e8", "#1565c0")):
-            alm = Github("Issue Board\nData Contract")
+            alm = Git("Issue Board\nData Contract")
 
         with Cluster("Project Isolation\nBranch · Workspace · S3 Prefix", graph_attr=cl("#fef7e0", "#f9a825", "#f57f17")):
             isolation = S3("Isolated\nWorkspace")
@@ -95,7 +96,7 @@ def generate_vsm_plane():
         alm >> Edge(label="2. Isolate", color="#f9a825", style="bold", weight="10") >> isolation
 
         with Cluster("Delivery\nFeature Branch · PR/MR", graph_attr=cl("#e8f5e9", "#43a047", "#2e7d32")):
-            pr = Github("PR/MR\nvia MCP")
+            pr = Codepipeline("PR/MR\nvia MCP")
 
         isolation >> Edge(label="3. Code", color="#43a047", style="bold", weight="10") >> pr
         pr >> Edge(label="4. Review", color="#1a73e8", style="dashed", weight="1") >> engineer

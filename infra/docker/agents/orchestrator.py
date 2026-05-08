@@ -37,6 +37,7 @@ from .router import AgentRouter, RoutingDecision
 from .scope_boundaries import check_scope
 from .workspace_setup import setup_workspace, push_and_create_pr, WorkspaceContext
 from .project_registry import get_registry
+from .status_sync import StatusSync
 from .stream_callback import DashboardCallback
 from . import task_queue
 
@@ -203,6 +204,10 @@ class Orchestrator:
         # ── Step 4: Constraint Extraction (if gate is active) ───
         if "constraint_extraction" in gates.outer_gates:
             plan = start_milestone(plan)
+            task_queue.append_task_event(
+                task_id, "gate", "Constraint extraction started",
+                phase="intake", gate_name="constraint_extraction", gate_result="pass",
+            )
             if self._is_fast_path(data_contract):
                 logger.info("Fast path: no constraints/related_docs — skipping extraction")
                 extraction_result = ExtractionResult(source_field="fast_path")
@@ -211,6 +216,11 @@ class Orchestrator:
                 extraction_result, dor_result = self._run_constraint_extraction(data_contract)
             plan = complete_milestone(plan, f"Extracted {len(extraction_result.constraints)} constraints")
             save_plan(plan, self._plans_dir)
+            task_queue.append_task_event(
+                task_id, "gate",
+                f"Constraint extraction complete: {len(extraction_result.constraints)} constraints",
+                phase="intake", gate_name="constraint_extraction", gate_result="pass",
+            )
         else:
             extraction_result = ExtractionResult(source_field="skipped")
             dor_result = DoRValidationResult(passed=True)
@@ -221,9 +231,18 @@ class Orchestrator:
             if not dor_result.passed:
                 plan = complete_milestone(plan, "DoR FAILED")
                 save_plan(plan, self._plans_dir)
+                task_queue.append_task_event(
+                    task_id, "gate", "DoR Gate FAILED — pipeline blocked",
+                    phase="intake", gate_name="dor", gate_result="fail",
+                    criteria="Definition of Ready validation",
+                )
                 return self._handle_dor_failure(decision, extraction_result, dor_result)
             plan = complete_milestone(plan, "DoR passed")
             save_plan(plan, self._plans_dir)
+            task_queue.append_task_event(
+                task_id, "gate", "DoR Gate passed ✓",
+                phase="intake", gate_name="dor", gate_result="pass",
+            )
         else:
             # DoR skipped (L5 + high confidence)
             if not dor_result.passed:
@@ -240,9 +259,18 @@ class Orchestrator:
             # Here we just track the milestone
             plan = complete_milestone(plan, "Adversarial gate active via hook")
             save_plan(plan, self._plans_dir)
+            task_queue.append_task_event(
+                task_id, "gate", "Adversarial challenge gate active",
+                phase="intake", gate_name="adversarial_challenge", gate_result="pass",
+            )
 
         # ── Step 7: Agent Builder ───────────────────────────────
         agent_names = self._build_pipeline(data_contract, extraction_result)
+        task_queue.append_task_event(
+            task_id, "system",
+            f"Pipeline built: {' → '.join(agent_names)}",
+            phase="intake",
+        )
 
         # ── Step 7.5: Workspace Setup (COE-011) ────────────────
         # Clone the target repo and create a feature branch.
@@ -289,9 +317,35 @@ class Orchestrator:
             plan = complete_milestone(plan, "Ship readiness validated")
             save_plan(plan, self._plans_dir)
 
+        # ── Step 9.4: Initialize StatusSync for ALM visibility ──
+        # StatusSync posts structured comments to the originating GitHub issue
+        # so the PM has visibility even without the portal (ADR-006).
+        issue_url = data_contract.get("issue_url", "")
+        if not issue_url:
+            repo = data_contract.get("repo", "")
+            issue_num = data_contract.get("issue_number", 0)
+            if repo and issue_num:
+                issue_url = f"https://github.com/{repo}/issues/{issue_num}"
+
+        status_sync = None
+        if issue_url:
+            try:
+                environment = os.environ.get("ENVIRONMENT", "dev")
+                status_sync = StatusSync(
+                    issue_url=issue_url,
+                    correlation_id=task_id,
+                    environment=environment,
+                )
+            except Exception as e:
+                logger.warning("StatusSync init failed (non-blocking): %s", e)
+
         # ── Step 9.5: Push & Create PR (if workspace is ready) ──
         if workspace.ready and result.get("status") == "completed":
             task_queue.update_task_stage(task_id, "review")
+            task_queue.append_task_event(
+                task_id, "system", "Pushing branch and creating PR...",
+                phase="review",
+            )
             pr_title = f"feat(GH-{workspace.issue_number}): {data_contract.get('title', 'Task completion')}"
             agent_name = os.environ.get("FDE_AGENT_NAME", "FDE Agent")
             agent_email = os.environ.get("FDE_AGENT_EMAIL", "fde-agent@factory.local")
@@ -314,21 +368,67 @@ class Orchestrator:
                 f"The codebase owner reviews and approves.*\n"
             )
             pr_result = push_and_create_pr(workspace, pr_title, pr_body)
+
+            # Retry with rebase if push failed due to stale ref (COE-019)
+            if not pr_result.get("pr_url") and "stale" in pr_result.get("error", "").lower():
+                logger.info("Push failed with stale ref — attempting rebase retry")
+                task_queue.append_task_event(
+                    task_id, "system",
+                    "Push rejected (stale ref) — retrying with git pull --rebase",
+                    phase="review",
+                )
+                rebase_ok = self._attempt_rebase_retry(workspace)
+                if rebase_ok:
+                    pr_result = push_and_create_pr(workspace, pr_title, pr_body)
+
             if pr_result.get("pr_url"):
                 logger.info("PR delivered: %s", pr_result["pr_url"])
                 result["pr_url"] = pr_result["pr_url"]
                 result["pr_number"] = pr_result.get("pr_number")
                 task_queue.update_task_stage(task_id, "completion", pr_url=pr_result["pr_url"])
+                task_queue.append_task_event(
+                    task_id, "system",
+                    f"PR created: {pr_result['pr_url']}",
+                    phase="completion",
+                )
+                # Post success to GitHub issue via StatusSync
+                if status_sync:
+                    try:
+                        status_sync.post_pipeline_complete(pr_url=pr_result["pr_url"])
+                    except Exception as e:
+                        logger.debug("StatusSync post_pipeline_complete failed: %s", e)
             else:
-                logger.warning("PR delivery failed: %s", pr_result.get("error", "unknown"))
+                pr_error = pr_result.get("error", "unknown")
+                logger.warning("PR delivery failed: %s", pr_error)
+                # Emit visible error event so portal CoT shows the failure
                 task_queue.update_task_stage(task_id, "completion")
-                result["pr_error"] = pr_result.get("error", "unknown")
+                task_queue.append_task_event(
+                    task_id, "error",
+                    f"PR delivery failed: {pr_error[:150]}",
+                    phase="review",
+                    context="Pipeline completed successfully but code delivery failed. "
+                            "The work is preserved in the container artifacts.",
+                )
+                result["pr_error"] = pr_error
+                # Post failure to GitHub issue via StatusSync
+                if status_sync:
+                    try:
+                        status_sync.post_pipeline_failed(
+                            stage="review",
+                            reason=f"Push/PR delivery failed: {pr_error[:100]}",
+                        )
+                    except Exception as e:
+                        logger.debug("StatusSync post_pipeline_failed failed: %s", e)
 
         # ── Step 10: DAG Resolution (ADR-014) ───────────────────
         # Signal task completion to the task queue. This triggers
         # _resolve_dependencies() which promotes dependent tasks to READY.
         # The DynamoDB Stream + Lambda fan-out picks up READY transitions
         # and starts new ECS tasks for parallel execution.
+        #
+        # NOTE: A task with pr_error is still COMPLETED (pipeline ran fine)
+        # but the pr_error field signals "completed-without-delivery" to the
+        # dashboard so the PM knows to investigate.
         if result.get("status") == "completed":
             try:
                 task_queue.complete_task(task_id, json.dumps(result, default=str))
@@ -344,6 +444,52 @@ class Orchestrator:
                 logger.warning("Task queue failure update failed (non-blocking): %s", e)
 
         return result
+
+    @staticmethod
+    def _attempt_rebase_retry(workspace: "WorkspaceContext") -> bool:
+        """Attempt to rebase the feature branch on top of the latest remote.
+
+        Called when push fails with 'stale info' — meaning the remote branch
+        was updated by another process (e.g., a previous retry or concurrent task).
+
+        Strategy: fetch + rebase onto origin/main. If conflicts arise, abort.
+
+        Returns:
+            True if rebase succeeded and the branch is ready for push retry.
+        """
+        import subprocess
+
+        repo_path = workspace.repo_path
+        try:
+            # Fetch latest from remote
+            fetch = subprocess.run(
+                ["git", "fetch", "origin"],
+                capture_output=True, text=True, timeout=30, cwd=repo_path,
+            )
+            if fetch.returncode != 0:
+                logger.warning("Rebase retry: fetch failed: %s", fetch.stderr[:200])
+                return False
+
+            # Try to rebase onto origin/main
+            rebase = subprocess.run(
+                ["git", "rebase", "origin/main"],
+                capture_output=True, text=True, timeout=60, cwd=repo_path,
+            )
+            if rebase.returncode != 0:
+                # Abort the rebase to leave the workspace clean
+                logger.warning("Rebase retry: rebase failed (conflicts): %s", rebase.stderr[:200])
+                subprocess.run(
+                    ["git", "rebase", "--abort"],
+                    capture_output=True, text=True, timeout=10, cwd=repo_path,
+                )
+                return False
+
+            logger.info("Rebase retry: successfully rebased onto origin/main")
+            return True
+
+        except Exception as e:
+            logger.warning("Rebase retry failed: %s", e)
+            return False
 
     def handle_spec(self, spec_content: str, spec_path: str) -> dict:
         """Handle a direct spec execution.
@@ -638,7 +784,7 @@ class Orchestrator:
             # Update dashboard stage (non-blocking)
             dashboard_stage = _AGENT_TO_STAGE.get(agent_name, agent_name)
             task_queue.update_task_stage(plan.task_id, dashboard_stage)
-            task_queue.append_task_event(plan.task_id, "agent", f"Agent '{agent_name}' executing", phase=dashboard_stage)
+            task_queue.append_task_event(plan.task_id, "system", f"▶ Stage started: {agent_name}", phase=dashboard_stage)
 
             # Create callback to stream agent brain events to portal CoT
             callback = DashboardCallback(task_id=plan.task_id)
@@ -647,6 +793,11 @@ class Orchestrator:
                 agent = self._registry.create_agent(agent_name, callback_handler=callback)
             except KeyError as e:
                 logger.error("Agent not found: %s", e)
+                task_queue.append_task_event(
+                    plan.task_id, "error",
+                    f"Agent '{agent_name}' not found in registry",
+                    phase=dashboard_stage,
+                )
                 results.append({
                     "agent_name": agent_name,
                     "status": "error",
@@ -666,6 +817,13 @@ class Orchestrator:
                     "message_length": len(message),
                 })
 
+                # Emit stage completion event for portal visibility (mirrors CloudWatch logs)
+                task_queue.append_task_event(
+                    plan.task_id, "system",
+                    f"✅ Stage complete: {agent_name} ({len(message)} chars)",
+                    phase=dashboard_stage,
+                )
+
                 current_prompt = (
                     f"Previous agent ({agent_name}) output:\n\n{message}\n\n"
                     "Continue the FDE pipeline from where the previous agent left off."
@@ -673,6 +831,11 @@ class Orchestrator:
 
             except Exception as e:
                 logger.error("Agent execution failed: %s — %s", agent_name, e)
+                task_queue.append_task_event(
+                    plan.task_id, "error",
+                    f"❌ Agent '{agent_name}' failed: {str(e)[:120]}",
+                    phase=dashboard_stage,
+                )
                 results.append({
                     "agent_name": agent_name,
                     "status": "error",

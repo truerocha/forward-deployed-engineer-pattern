@@ -34,6 +34,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fde-entrypoint")
 
+
+def _init_telemetry():
+    """Initialize OpenTelemetry distributed tracing (ADOT sidecar pattern).
+
+    The Strands SDK natively supports OTEL via StrandsTelemetry. When enabled,
+    it automatically creates spans for:
+      - Agent-level: full agent invocation (model, prompt hash, token counts)
+      - Cycle-level: each reasoning cycle (think → act → observe)
+      - Tool-level: each tool call (name, duration, success/failure)
+
+    The ADOT sidecar container (in the same ECS task) receives traces on
+    localhost:4318 and exports them to AWS X-Ray.
+
+    Environment variables (set in ECS task definition):
+      OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      OTEL_SERVICE_NAME=fde-strands-agent
+      OTEL_RESOURCE_ATTRIBUTES=deployment.environment=dev,service.version=1.0
+      OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
+
+    If OTEL is not configured (no endpoint), this is a no-op.
+    """
+    otel_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+    if not otel_endpoint:
+        logger.info("OTEL tracing disabled (no OTEL_EXPORTER_OTLP_ENDPOINT)")
+        return
+
+    try:
+        from strands.telemetry import StrandsTelemetry
+        StrandsTelemetry()
+        logger.info("OTEL tracing enabled → %s (service: %s)",
+                    otel_endpoint,
+                    os.environ.get("OTEL_SERVICE_NAME", "fde-strands-agent"))
+    except ImportError:
+        logger.warning("strands.telemetry not available — OTEL tracing disabled")
+    except Exception as e:
+        logger.warning("OTEL init failed (non-blocking): %s", e)
+
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 FACTORY_BUCKET = os.environ.get("FACTORY_BUCKET", "")
@@ -108,6 +145,9 @@ def validate_environment() -> list[str]:
 def main():
     logger.info("FDE Strands Agent starting...")
     logger.info("Region: %s | Model: %s | Bucket: %s | Env: %s", AWS_REGION, BEDROCK_MODEL_ID, FACTORY_BUCKET, ENVIRONMENT)
+
+    # Initialize OTEL distributed tracing (no-op if not configured)
+    _init_telemetry()
 
     issues = validate_environment()
     if issues:

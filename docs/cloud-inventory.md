@@ -80,9 +80,22 @@
 | Component | ID | Details |
 |-----------|-----|---------|
 | Cluster | `fde-dev-cluster` | ARN: `arn:aws:ecs:us-east-1:785640717688:cluster/fde-dev-cluster` |
-| Task Definition (Strands Agent) | `fde-dev-strands-agent:6` | ARN: `arn:aws:ecs:us-east-1:785640717688:task-definition/fde-dev-strands-agent:6` |
+| Task Definition (Strands Agent) | `fde-dev-strands-agent:7` | ARN: `arn:aws:ecs:us-east-1:785640717688:task-definition/fde-dev-strands-agent:7` |
 | Task Definition (Onboarding) | `fde-dev-onboarding-agent` | Repo onboarding agent |
 | Capacity Providers | — | FARGATE, FARGATE_SPOT |
+| ADOT Sidecar | — | `public.ecr.aws/aws-observability/aws-otel-collector:latest` (non-essential) |
+
+---
+
+## Observability (OTEL + X-Ray)
+
+| Component | Details |
+|-----------|---------|
+| ADOT Collector | Sidecar in ECS task, receives OTLP on `localhost:4318` |
+| Export Target | AWS X-Ray (via `ecs-xray.yaml` config) |
+| Service Name | `fde-dev-strands-agent` |
+| Trace Scope | Agent-level, cycle-level, tool-level spans (Strands SDK native) |
+| IAM | `xray:PutTraceSegments`, `xray:PutTelemetryRecords`, sampling rules |
 
 ---
 

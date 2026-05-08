@@ -151,10 +151,25 @@ def _handle_tasks(event, context):
             current_stage = item.get("current_stage", "")
             stage_index = PIPELINE_STAGES.index(current_stage) if current_stage in PIPELINE_STAGES else -1
 
+            # Determine if task completed without delivery (pr_error present)
+            result_json = item.get("result", "")
+            has_pr_error = False
+            if result_json and isinstance(result_json, str):
+                try:
+                    result_data = json.loads(result_json)
+                    has_pr_error = bool(result_data.get("pr_error"))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            task_status = _map_status(item.get("status", "PENDING"))
+            # Surface "completed-without-delivery" as a distinct status for the portal
+            if task_status == "completed" and has_pr_error and not item.get("pr_url"):
+                task_status = "completed_no_delivery"
+
             tasks.append({
                 "task_id": task_id,
                 "title": item.get("title", item.get("task_id", "Unknown")),
-                "status": _map_status(item.get("status", "PENDING")),
+                "status": task_status,
                 "current_stage": current_stage,
                 "stage_progress": {
                     "current": stage_index + 1,
@@ -172,6 +187,7 @@ def _handle_tasks(event, context):
                 "source": item.get("source", ""),
                 "issue_url": item.get("issue_url", ""),
                 "pr_url": item.get("pr_url", ""),
+                "pr_error": item.get("pr_error", ""),
                 "workspace_error": item.get("workspace_error", ""),
                 "priority": item.get("priority", "P2"),
                 "duration_ms": int(item.get("duration_ms", 0)),
