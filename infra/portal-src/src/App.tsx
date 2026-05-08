@@ -11,7 +11,8 @@ import {
   GitBranch,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  BarChart3
 } from 'lucide-react';
 import { AgentSidebar } from './components/AgentSidebar';
 import { Terminal } from './components/Terminal';
@@ -21,8 +22,29 @@ import { ComponentHealthCard } from './components/ComponentHealthCard';
 import { RegistriesCard } from './components/RegistriesCard';
 import { BranchEvaluationCard } from './components/BranchEvaluationCard';
 import { Agent, LogEntry, AppView } from './types';
+import { PersonaRouter } from './components/PersonaRouter';
+import { DoraCard } from './components/DoraCard';
+import { CostCard } from './components/CostCard';
+import { ValueStreamCard } from './components/ValueStreamCard';
+import { MaturityRadar } from './components/MaturityRadar';
+import { BrainSimCard } from './components/BrainSimCard';
+import { TrustCard } from './components/TrustCard';
+import { NetFrictionCard } from './components/NetFrictionCard';
+import { GateFeedbackCard } from './components/GateFeedbackCard';
+import { GateHistoryCard } from './components/GateHistoryCard';
+import { DataQualityCard } from './components/DataQualityCard';
+import { SquadExecutionCard } from './components/SquadExecutionCard';
+import { LiveTimeline } from './components/LiveTimeline';
+import { HumanInputCard } from './components/HumanInputCard';
 import factoryConfig from './factory-config.json';
 import { useTranslation } from 'react-i18next';
+import {
+  mapDoraMetrics,
+  mapCostMetrics,
+  mapGateHistory,
+  mapLiveTimeline,
+  mapSquadExecution,
+} from './mappers/factoryDataMapper';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -149,7 +171,7 @@ export default function App() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '') as AppView;
-      if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries'].includes(hash)) {
+      if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'observability'].includes(hash)) {
         setActiveView(hash);
       }
     };
@@ -231,6 +253,7 @@ export default function App() {
           <RailItem view="gates" icon={ShieldCheck} label={t('nav.gates')} />
           <RailItem view="health" icon={HeartPulse} label={t('nav.health')} />
           <RailItem view="registries" icon={Database} label={t('nav.catalog')} />
+          <RailItem view="observability" icon={BarChart3} label="METRICS" />
         </nav>
 
         <div className="flex flex-col gap-2 mt-auto mb-4">
@@ -412,6 +435,28 @@ export default function App() {
           {activeView === 'registries' && (
             <div className="flex-1 flex flex-col overflow-hidden">
               <RegistriesCard />
+            </div>
+          )}
+
+          {activeView === 'observability' && (
+            <div className="flex-1 flex flex-col overflow-hidden overflow-y-auto">
+              <PersonaRouter>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
+                  <DoraCard metrics={mapDoraMetrics(factoryData)} />
+                  <CostCard summary={mapCostMetrics(factoryData)} />
+                  <ValueStreamCard />
+                  <MaturityRadar />
+                  <BrainSimCard />
+                  <TrustCard />
+                  <NetFrictionCard />
+                  <GateFeedbackCard />
+                  <GateHistoryCard history={mapGateHistory(factoryData)} />
+                  <DataQualityCard />
+                  <SquadExecutionCard agents={mapSquadExecution(factoryData)} />
+                  <LiveTimeline events={mapLiveTimeline(factoryData)} />
+                  <HumanInputCard onRespond={() => {}} />
+                </div>
+              </PersonaRouter>
             </div>
           )}
         </main>

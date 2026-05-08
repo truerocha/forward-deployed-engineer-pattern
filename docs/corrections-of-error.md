@@ -6,6 +6,48 @@
 
 ---
 
+## COE-020: ECS platform mismatch (arm64→amd64) + single-model infra + stale EventBridge targets
+
+- **Date**: 2026-05-08
+- **Severity**: Infrastructure (P0 — all 14 tasks stuck, zero pipeline throughput for >1 hour)
+- **Found in**: ECS task failure logs, ECR image manifest, EventBridge target configuration, Terraform task definition env vars
+- **Root causes** (3 distinct failures):
+  1. **Docker image built for wrong platform (arm64 on amd64 Fargate)** — The `strands-agent:latest` and `adot-v0.40.0` images in ECR were built on Apple Silicon (arm64) without `--platform linux/amd64`. ECS Fargate requires amd64. Error: `CannotPullContainerError: image Manifest does not contain descriptor matching platform 'linux/amd64'`. This is a recurrence of the same class as COE-011 item 2.
+  2. **Single-model infrastructure despite multi-model code** — The `squad_composer.py` code reads `BEDROCK_MODEL_REASONING`, `BEDROCK_MODEL_STANDARD`, `BEDROCK_MODEL_FAST` env vars to route different agent roles to different model tiers. But the Terraform task definitions only passed a single `BEDROCK_MODEL_ID` env var. All agents defaulted to Claude Sonnet 4.5 regardless of role, defeating the cost/capability optimization design.
+  3. **EventBridge targets pinned to stale task definition revision** — After updating the task definition to revision `:12`, a targeted `terraform apply` on the task definition alone did NOT update the EventBridge targets. The targets remained pinned to `:11` (the broken revision). New tasks continued launching with the old (broken) image. A full `terraform apply` was required to propagate the revision change to dependent resources.
+- **Fixes applied**:
+  - ✅ **Rebuilt both images for linux/amd64** — `docker buildx build --platform linux/amd64` for strands-agent and ADOT sidecar. Pushed to ECR.
+  - ✅ **Added Makefile automation** — `make docker-build`, `make docker-build-adot`, `make docker-push-all`, `make docker-deploy` all enforce `--platform linux/amd64`. ECR URL resolved from Terraform outputs (no hardcoding).
+  - ✅ **Added multi-model tier Terraform variables** — `bedrock_model_reasoning`, `bedrock_model_standard`, `bedrock_model_fast` as first-class infra parameters. Passed to both main task definition and squad agent module.
+  - ✅ **Updated ECS task definitions** — Revision `:12` includes `BEDROCK_MODEL_REASONING`, `BEDROCK_MODEL_STANDARD`, `BEDROCK_MODEL_FAST` env vars.
+  - ✅ **Full terraform apply** — Updated all 3 EventBridge targets (GitHub, GitLab, Asana) from `:11` → `:12`.
+  - ✅ **Reset stuck tasks** — All failed/dead-letter tasks reset to PENDING for retry.
+  - ✅ **Verified container starts** — Test ECS task launched, pulled image successfully, ran to exit 0.
+- **Files modified**:
+  - `Makefile` — Added `docker-build`, `docker-build-adot`, `docker-build-onboarding`, `docker-push-all`, `docker-deploy` targets
+  - `infra/terraform/variables.tf` — Added `bedrock_model_reasoning`, `bedrock_model_standard`, `bedrock_model_fast` variables
+  - `infra/terraform/main.tf` — Added 3 model tier env vars to strands-agent container definition
+  - `infra/terraform/distributed-infra.tf` — Passed model tier vars to ECS module
+  - `infra/terraform/modules/ecs/agent_task_def.tf` — Added model tier variables and env vars to squad agent container
+  - `infra/terraform/dashboard-cdn.tf` — Improved CloudFront caching (immutable assets, SPA fallback)
+  - `scripts/deploy-dashboard.sh` — Added `--build` flag, separated S3 uploads by cache policy
+- **Lessons**:
+  - **Never use targeted terraform apply for task definitions** — EventBridge targets, DAG fanout Lambda, and other consumers reference the task definition ARN (which includes the revision number). A targeted apply creates a new revision but leaves consumers pointing to the old one. Always do a full apply.
+  - **Build automation must enforce platform** — The `--platform linux/amd64` flag must be in the build automation (Makefile), not in developer memory. This is the second time this class of bug occurred (COE-011).
+  - **Infra must match code contracts** — When application code reads env vars for configuration, the infrastructure must provide them. The `squad_composer.py` multi-model routing was dead code in production because the env vars were never set.
+- **Prevention**:
+  - `make docker-build` is now the canonical build path (enforces platform)
+  - `make docker-deploy` does build + push + terraform apply (full, not targeted)
+  - Model tier variables are in `variables.tf` with sensible defaults — changing models is now a tfvars change, not a code change
+- **Well-Architected alignment**:
+  - OPS 5 (reduce defects) — Build automation prevents platform mismatch recurrence
+  - OPS 8 (respond to events) — Full apply ensures EventBridge targets stay in sync
+  - COST 1 (practice cloud financial management) — Multi-model routing enables cost optimization (Haiku for simple tasks, Sonnet for complex)
+  - PERF 3 (select the best performing resources) — Right-sized models per agent role
+  - REL 5 (design interactions to prevent failures) — Terraform dependency graph must be respected (no targeted apply for shared resources)
+
+---
+
 ## COE-019: StatusSync dead code + silent PR delivery failure + no portal visibility
 
 - **Date**: 2026-05-08

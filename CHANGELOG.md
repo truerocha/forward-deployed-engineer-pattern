@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-08
 
+### Fixed — COE-020: ECS Platform Mismatch + Multi-Model Infra + EventBridge Drift
+- `Makefile` — Added `docker-build`, `docker-build-adot`, `docker-build-onboarding`, `docker-push-all`, `docker-deploy` targets. All enforce `--platform linux/amd64` for Fargate compatibility. ECR URL resolved from Terraform outputs.
+- `infra/terraform/variables.tf` — Added `bedrock_model_reasoning` (Claude Sonnet 4), `bedrock_model_standard` (Claude Sonnet 4.5), `bedrock_model_fast` (Claude Haiku 4.5) as first-class infrastructure parameters.
+- `infra/terraform/main.tf` — Strands agent task definition now passes `BEDROCK_MODEL_REASONING`, `BEDROCK_MODEL_STANDARD`, `BEDROCK_MODEL_FAST` env vars to the container.
+- `infra/terraform/distributed-infra.tf` — Passes model tier variables through to ECS module.
+- `infra/terraform/modules/ecs/agent_task_def.tf` — Squad agent task definition includes all 3 model tier env vars.
+- `infra/terraform/dashboard-cdn.tf` — CloudFront: added `ordered_cache_behavior` for `/assets/*` (1-year immutable cache), reduced default TTL to 60s, added SPA fallback (403/404 → index.html).
+- `scripts/deploy-dashboard.sh` — Added `--build` flag for source rebuild before deploy. Separated S3 uploads: index.html (no-cache), assets (immutable), images (24h cache).
+- Docker images rebuilt for `linux/amd64` and pushed to ECR. ADOT sidecar rebuilt from official AWS public ECR image.
+- EventBridge targets (GitHub, GitLab, Asana) updated from task definition revision `:11` → `:12`.
+
+### Added — Portal Observability Data Mapper
+- `infra/portal-src/src/mappers/factoryDataMapper.ts` — New mapper module with 5 functions: `mapDoraMetrics()`, `mapCostMetrics()`, `mapGateHistory()`, `mapLiveTimeline()`, `mapSquadExecution()`. Transforms raw `/status/tasks` API response into component prop shapes.
+- `infra/portal-src/src/App.tsx` — Observability view now passes real API data to DoraCard, CostCard, GateHistoryCard, LiveTimeline, SquadExecutionCard via mapper functions.
+- `infra/portal-src/src/services/factoryService.ts` — Added `agents` field to `DashboardData` interface (matches Lambda response).
+- `infra/dashboard/` — Rebuilt with fresh Vite output containing mapper code.
+
 ### Fixed — COE-019: Observability Pipeline (StatusSync + Portal + OTEL)
 - `infra/docker/agents/orchestrator.py` — Integrated `StatusSync` (was dead code) to post structured comments to GitHub issues on pipeline complete/fail. Added rebase-retry when push fails with stale ref. Emits `append_task_event(type="error")` on PR delivery failure. Emits gate events (constraint extraction, DoR, adversarial) and stage start/complete events to DynamoDB for portal visibility.
 - `infra/docker/agents/stream_callback.py` — Expanded `DashboardCallback` reasoning markers (5→13 keywords), text markers (emojis, file ops, bold items, `#` headers), matching CloudWatch log visibility in the portal.
