@@ -430,9 +430,11 @@ resource "aws_ecs_task_definition" "strands_agent" {
     # Receives traces from the Strands agent on localhost:4318 (OTLP/HTTP)
     # and exports them to AWS X-Ray for distributed trace visualization.
     # Non-essential: agent continues if ADOT fails to start.
+    # IMPORTANT: Use pinned version tag, NOT :latest (COE-020: :latest caused
+    # CannotPullContainerError on Fargate due to manifest resolution failure).
     {
       name      = "adot-collector"
-      image     = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      image     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.40.0"
       essential = false
 
       command = ["--config=/etc/ecs/ecs-xray.yaml"]
