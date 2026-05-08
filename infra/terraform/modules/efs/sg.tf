@@ -6,7 +6,9 @@
 # No public access. No cross-VPC access. Least-privilege networking.
 #
 # Ingress: TCP 2049 from ECS SG only
-# Egress: None (EFS is a target, not an initiator)
+# Egress: None required (EFS mount targets respond on the same
+#         connection initiated by the client — no outbound initiation).
+#         AWS SGs are stateful: response traffic is automatically allowed.
 # ═══════════════════════════════════════════════════════════════════
 
 resource "aws_security_group" "efs" {
@@ -33,14 +35,4 @@ resource "aws_security_group_rule" "efs_ingress_nfs" {
   security_group_id        = aws_security_group.efs.id
   source_security_group_id = var.ecs_security_group_id
   description              = "NFS from ECS agent tasks"
-}
-
-resource "aws_security_group_rule" "efs_egress_none" {
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  security_group_id = aws_security_group.efs.id
-  cidr_blocks       = []
-  description       = "No outbound - EFS is a target only"
 }
