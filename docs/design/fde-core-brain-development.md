@@ -50,7 +50,7 @@ This document merges four complementary inputs into a single coherent, deploymen
 | 1.14 | Update dora_metrics.py (autonomy_level dimension) | `src/core/metrics/dora_metrics.py` | MODIFY | 1.05 | ✅ |
 | 1.15 | Implement verification_metrics.py | `src/core/metrics/verification_metrics.py` | CREATE | 1.05 | ✅ |
 | 1.16 | Implement vsm_tracker.py | `src/core/metrics/vsm_tracker.py` | CREATE | 1.05 | ✅ |
-| 1.17 | Implement anti_instability_loop.py | `src/core/governance/anti_instability_loop.py` | CREATE | 1.14 | ☐ |
+| 1.17 | Implement anti_instability_loop.py | `src/core/governance/anti_instability_loop.py` | CREATE | 1.14 | ✅ |
 | 1.18 | Create starter profile | `.kiro/profiles/starter.json` | CREATE | None | ☐ |
 | 1.19 | Create standard profile | `.kiro/profiles/standard.json` | CREATE | 1.18 | ☐ |
 | 1.20 | Create full profile | `.kiro/profiles/full.json` | CREATE | 1.19 | ☐ |
