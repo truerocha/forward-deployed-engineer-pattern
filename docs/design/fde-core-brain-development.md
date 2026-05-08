@@ -42,8 +42,8 @@ This document merges four complementary inputs into a single coherent, deploymen
 | 1.06 | Create DynamoDB table: fde-dev-memory | `infra/terraform/modules/dynamodb/memory.tf` | CREATE | Pre-flight checks | ✅ |
 | 1.07 | Create DynamoDB table: fde-dev-organism | `infra/terraform/modules/dynamodb/organism.tf` | CREATE | Pre-flight checks | ✅ |
 | 1.08 | Create DynamoDB table: fde-dev-knowledge | `infra/terraform/modules/dynamodb/knowledge.tf` | CREATE | Pre-flight checks | ✅ |
-| 1.09 | Create parametrized Agent ECS Task Definition | `infra/terraform/modules/ecs/agent_task_def.tf` | CREATE | 1.01, 1.03 | ☐ |
-| 1.10 | Create Orchestrator ECS Task Definition | `infra/terraform/modules/ecs/orchestrator_task_def.tf` | CREATE | 1.09 | ☐ |
+| 1.09 | Create parametrized Agent ECS Task Definition | `infra/terraform/modules/ecs/agent_task_def.tf` | CREATE | 1.01, 1.03 | ✅ |
+| 1.10 | Create Orchestrator ECS Task Definition | `infra/terraform/modules/ecs/orchestrator_task_def.tf` | CREATE | 1.09 | ✅ |
 | 1.11 | Implement distributed_orchestrator.py | `src/core/orchestration/distributed_orchestrator.py` | CREATE | 1.10 | ☐ |
 | 1.12 | Implement agent_runner.py | `src/core/orchestration/agent_runner.py` | CREATE | 1.09 | ☐ |
 | 1.13 | Implement cost_tracker.py | `src/core/metrics/cost_tracker.py` | CREATE | 1.05 | ☐ |
