@@ -114,11 +114,11 @@ def update_task_stage(task_id: str, stage: str, **kwargs) -> None:
         logger.warning("Failed to update stage for %s: %s", task_id, e)
 
 
-def append_task_event(task_id: str, event_type: str, message: str) -> None:
-    """Append a reasoning event to the task's events list for Chain of Thought.
+def append_task_event(task_id: str, event_type: str, message: str, **metadata) -> None:
+    """Append a structured reasoning event to the task's events list.
 
-    The dashboard reads these events and renders them in the Chain of Thought
-    panel so the PM can see what the agent is thinking/doing.
+    The dashboard reads these events and renders them in the Reasoning and
+    Gates views so the PM can see what the agent decided and why.
 
     Events are capped at 50 per task to stay within DynamoDB item size limits.
 
@@ -126,6 +126,14 @@ def append_task_event(task_id: str, event_type: str, message: str) -> None:
         task_id: The task to append the event to.
         event_type: Event category (e.g., 'agent', 'system', 'tool', 'gate', 'error').
         message: Human-readable event description (max 200 chars).
+        **metadata: Optional structured fields for richer rendering:
+            - phase: FDE phase (e.g., 'reconnaissance', 'intake', 'engineering')
+            - gate_name: Gate identifier (e.g., 'dor', 'adversarial', 'dod', 'concurrency')
+            - gate_result: 'pass' or 'fail'
+            - criteria: What was evaluated (max 150 chars)
+            - context: Accumulated context or rationale (max 300 chars)
+            - autonomy_level: Computed autonomy level (e.g., 'L3', 'L5')
+            - confidence: Confidence level (e.g., 'high', 'medium', 'low')
     """
     table = _get_table()
     event_entry = {
@@ -133,6 +141,15 @@ def append_task_event(task_id: str, event_type: str, message: str) -> None:
         "type": event_type,
         "msg": message[:200],
     }
+
+    # Add optional structured metadata (only non-empty values)
+    allowed_fields = ("phase", "gate_name", "gate_result", "criteria", "context",
+                      "autonomy_level", "confidence")
+    for field in allowed_fields:
+        value = metadata.get(field)
+        if value:
+            max_len = 300 if field == "context" else 150
+            event_entry[field] = str(value)[:max_len]
 
     try:
         table.update_item(

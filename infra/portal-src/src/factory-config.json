@@ -1,0 +1,11 @@
+{
+  "project_id": "CODE_FACTORY",
+  "region": "us-east-1",
+  "account": "785640717688",
+  "vpc": "vpc-073e4f187210957cc",
+  "distribution": "d3btj6a4igoa8k.cloudfront.net",
+  "api_endpoint": "https://4qhn5ly26e.execute-api.us-east-1.amazonaws.com",
+  "artifacts_bucket": "fde-dev-artifacts-785640717688",
+  "alm_integrations": ["GitHub", "GitLab", "Asana"],
+  "environment": "fde-dev"
+}

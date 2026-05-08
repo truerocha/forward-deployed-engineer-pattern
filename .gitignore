@@ -14,10 +14,16 @@ build/
 .kiro/specs/WORKING_MEMORY.md
 .kiro/specs/holdout/
 infra/terraform/.terraform/
+infra/terraform/.build/
 infra/terraform/terraform.tfstate
 infra/terraform/terraform.tfstate.backup
 infra/terraform/tfplan
 infra/terraform/factory.tfvars
+
+# Portal source (development artifacts)
+infra/portal-src/node_modules/
+infra/portal-src/dist/
+infra/portal-src/package-lock.json
 
 # Reference PDFs (kept locally, not in repo)
 docs/example/*.pdf
@@ -28,3 +34,9 @@ docs/internal/blogpost-*.md
 
 # Internal planning documents (not for public repo)
 docs/design/task-plan-fde.md
+
+# Mirror automation (internal only — not for public GitHub)
+scripts/mirror-push.sh
+scripts/hooks/
+docs/internal/mirror-automation-pattern.md
+Makefile

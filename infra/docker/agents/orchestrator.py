@@ -148,7 +148,14 @@ class Orchestrator:
 
         # Emit initial stage update
         task_queue.update_task_stage(task_id, "ingested")
-        task_queue.append_task_event(task_id, "system", f"Pipeline started — autonomy={autonomy_result.level}, confidence={scope_result.confidence_level}")
+        task_queue.append_task_event(
+            task_id, "system",
+            f"Pipeline started — autonomy={autonomy_result.level}, confidence={scope_result.confidence_level}",
+            phase="intake",
+            autonomy_level=str(autonomy_result.level),
+            confidence=scope_result.confidence_level,
+            context=f"Scope check passed. Gates resolved: outer={gates.outer_gates}, inner={gates.inner_gates}",
+        )
 
         # ── Step 3.2: Concurrency Guard ─────────────────────────
         # Prevent too many parallel agents on the same repo (merge conflict risk).
@@ -162,6 +169,10 @@ class Orchestrator:
                 task_queue.append_task_event(
                     task_id, "gate",
                     f"Concurrency guard: {active_count}/{project_config.max_concurrent_tasks} slots used — queued",
+                    gate_name="concurrency",
+                    gate_result="fail",
+                    criteria=f"max_concurrent={project_config.max_concurrent_tasks} for repo={repo}",
+                    context=f"Active tasks: {active_count}. Task queued until a slot opens.",
                 )
                 task_queue.update_task_stage(task_id, "ingested")
                 return {
@@ -231,7 +242,7 @@ class Orchestrator:
         workspace = setup_workspace(event.get("detail", event), decision.metadata)
         if workspace.ready:
             logger.info("Workspace ready: %s (branch: %s)", workspace.repo_path, workspace.branch_name)
-            task_queue.append_task_event(task_id, "system", f"Workspace ready: {workspace.repo_full_name} → {workspace.branch_name}")
+            task_queue.append_task_event(task_id, "system", f"Workspace ready: {workspace.repo_full_name} → {workspace.branch_name}", phase="workspace")
             # Inject workspace context into the agent's prompt so it knows
             # it's in a cloned repo and doesn't re-initialize git
             workspace_context = (
@@ -255,7 +266,7 @@ class Orchestrator:
         else:
             logger.warning("Workspace setup failed: %s — agents will run without repo context", workspace.error)
             task_queue.update_task_stage(task_id, "workspace", workspace_error=workspace.error)
-            task_queue.append_task_event(task_id, "error", f"Workspace failed: {workspace.error[:150]}")
+            task_queue.append_task_event(task_id, "error", f"Workspace failed: {workspace.error[:150]}", phase="workspace")
 
         # ── Step 8: Execute Pipeline (inner loop with plan tracking) ──
         task_queue.update_task_stage(task_id, "reconnaissance")
@@ -609,7 +620,7 @@ class Orchestrator:
             # Update dashboard stage (non-blocking)
             dashboard_stage = _AGENT_TO_STAGE.get(agent_name, agent_name)
             task_queue.update_task_stage(plan.task_id, dashboard_stage)
-            task_queue.append_task_event(plan.task_id, "agent", f"Agent '{agent_name}' executing")
+            task_queue.append_task_event(plan.task_id, "agent", f"Agent '{agent_name}' executing", phase=dashboard_stage)
 
             try:
                 agent = self._registry.create_agent(agent_name)

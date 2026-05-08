@@ -60,18 +60,21 @@ echo "  ✅ Bucket: $BUCKET"
 
 # 2. Inject API URL into dashboard HTML
 echo "  → Injecting API URL into dashboard..."
-TEMP_HTML="/tmp/dashboard-deploy-$$.html"
-sed "s|<meta name=\"factory-api-url\" content=\"\">|<meta name=\"factory-api-url\" content=\"$API_URL\">|" \
-  "$DASHBOARD_SRC" > "$TEMP_HTML"
+TEMP_DIR="/tmp/dashboard-deploy-$$"
+mkdir -p "$TEMP_DIR"
+cp -r "$(dirname "$DASHBOARD_SRC")/"* "$TEMP_DIR/"
+sed -i.bak "s|<meta name=\"factory-api-url\" content=\"\">|<meta name=\"factory-api-url\" content=\"$API_URL\">|" \
+  "$TEMP_DIR/index.html"
+rm -f "$TEMP_DIR/index.html.bak"
 
 # 3. Upload with SSE-S3 (required for CloudFront OAC — KMS blocks OAC reads)
-echo "  → Uploading to s3://$BUCKET/dashboard/index.html (SSE-S3)..."
-aws s3 cp "$TEMP_HTML" "s3://$BUCKET/dashboard/index.html" \
-  --content-type "text/html" \
+echo "  → Syncing dashboard to s3://$BUCKET/dashboard/ (SSE-S3)..."
+aws s3 sync "$TEMP_DIR/" "s3://$BUCKET/dashboard/" \
   --sse AES256 \
+  --delete \
   --region "$REGION" >/dev/null
 
-rm -f "$TEMP_HTML"
+rm -rf "$TEMP_DIR"
 
 # 4. Invalidate CloudFront cache
 if [[ -n "$DASHBOARD_URL" ]]; then

@@ -42,12 +42,66 @@ PIPELINE_STAGES = [
 
 
 def handler(event, context):
-    """Lambda handler — routes to /status/tasks or /status/health."""
+    """Lambda handler — routes to /status/tasks, /status/tasks/{id}/reasoning, or /status/health."""
     path = event.get("rawPath", event.get("path", "/status/tasks"))
 
     if "/status/health" in path:
         return _handle_health(event, context)
+    if "/reasoning" in path:
+        return _handle_reasoning(event, context)
     return _handle_tasks(event, context)
+
+
+def _handle_reasoning(event, context):
+    """GET /status/tasks/{id}/reasoning — Full reasoning timeline for a single task.
+
+    Returns all events (not capped at 20) with structured metadata for the
+    Reasoning and Gates views in the dashboard.
+    """
+    try:
+        # Extract task_id from path: /status/tasks/{id}/reasoning
+        path = event.get("rawPath", event.get("path", ""))
+        parts = [p for p in path.strip("/").split("/") if p]
+        # Expected: ['status', 'tasks', '{task_id}', 'reasoning']
+        task_id = parts[2] if len(parts) >= 4 else ""
+
+        if not task_id:
+            return _response(400, {"error": "task_id required in path"})
+
+        item = task_table.get_item(Key={"task_id": task_id}).get("Item")
+        if not item:
+            return _response(404, {"error": f"Task {task_id} not found"})
+
+        events = item.get("events", [])
+
+        # Separate gate events from general reasoning events
+        gate_events = [e for e in events if e.get("type") == "gate"]
+        reasoning_events = [e for e in events if e.get("type") != "gate"]
+
+        # Compute gate summary
+        gate_passed = sum(1 for e in gate_events if e.get("gate_result") == "pass")
+        gate_failed = sum(1 for e in gate_events if e.get("gate_result") == "fail")
+
+        body = {
+            "task_id": task_id,
+            "title": item.get("title", ""),
+            "status": _map_status(item.get("status", "")),
+            "current_stage": item.get("current_stage", ""),
+            "events": events,
+            "reasoning_events": reasoning_events,
+            "gate_events": gate_events,
+            "gate_summary": {
+                "total": len(gate_events),
+                "passed": gate_passed,
+                "failed": gate_failed,
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return _response(200, body)
+
+    except Exception as e:
+        return _response(500, {"error": "Internal server error"})
 
 
 def _handle_tasks(event, context):

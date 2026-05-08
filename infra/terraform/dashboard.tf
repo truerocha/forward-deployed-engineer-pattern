@@ -100,6 +100,12 @@ resource "aws_apigatewayv2_route" "dashboard_health" {
   target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
 }
 
+resource "aws_apigatewayv2_route" "dashboard_reasoning" {
+  api_id    = aws_apigatewayv2_api.webhook.id
+  route_key = "GET /status/tasks/{task_id}/reasoning"
+  target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
+}
+
 resource "aws_lambda_permission" "dashboard_status_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
