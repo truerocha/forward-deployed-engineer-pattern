@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased] — 2026-05-07
+
+### Added — Agent Brain → Portal CoT Bridge
+- `infra/docker/agents/stream_callback.py` — Rewrote `DashboardCallback` to implement Strands SDK `__call__(**kwargs)` interface. Captures tool invocations (from `contentBlockStart` events), reasoning markers (decision/conclusion/approach keywords), and structural text (## headers, ✅/❌ markers). Batches writes (max 1/5s, max 10/buffer) to avoid DynamoDB write amplification.
+- `infra/docker/agents/registry.py` — `create_agent()` now accepts optional `callback_handler` kwarg, passes to Strands `Agent()` constructor.
+- `infra/docker/agents/orchestrator.py` — Creates `DashboardCallback(task_id)` before each agent execution, wiring the brain→portal bridge.
+- Data flow: Agent brain (Bedrock stream) → DashboardCallback → DynamoDB events → Lambda `/status/tasks/{id}/reasoning` → Portal Reasoning view (15s polling).
+
+### Added — Agent Identity Labeling + PR Attribution
+- `infra/docker/agents/workspace_setup.py` — Git author now uses `FDE_AGENT_NAME`/`FDE_AGENT_EMAIL` env vars with issue number tag (e.g., `FDE Agent [GH-42]`) for commit traceability.
+- `infra/docker/agents/orchestrator.py` — PR body includes Attribution section: agent as hands-on author, codebase owner as reviewer via CODEOWNERS, task ID for correlation.
+- Configurable via env vars: `FDE_AGENT_NAME`, `FDE_AGENT_EMAIL` (defaults preserved for backward compatibility).
+
+### Added — ADR-017: React Portal for Factory Observability UX
+- `docs/adr/ADR-017-react-portal-observability-ux.md` — Documents the decision to adopt React + Vite + Tailwind for the portal layer. Partially supersedes ADR-011 (YAGNI) for the observability layer only. Covers: technology choices, data classification for exposed events, i18n governance (Ops team maintains, en-US/pt-BR/es), WCAG 2.1 AA compliance, supply chain risk mitigation.
+
+### Added — Concurrency Guard Hardening (COE-016)
+- `infra/docker/agents/task_queue.py` — `reap_stuck_tasks(max_age_minutes=60)`: marks orphaned IN_PROGRESS tasks as FAILED after 60min without update. `retry_queued_tasks(repo)`: finds tasks blocked by concurrency guard that are now eligible. `check_concurrency()`: fail-safe for `max_concurrent_tasks <= 0`. `complete_task()`: calls reap + retry on completion to close liveness gap.
+- `infra/docker/agents/project_registry.py` — `FACTORY_ALLOW_AUTO_REGISTER` env var (default: true) gates auto-registration. `FACTORY_ALLOWED_ORGS` (comma-separated) restricts to specific GitHub/GitLab organizations. Unknown repos from non-allowed orgs get `max_concurrent_tasks=1`.
+- `infra/docker/agents/orchestrator.py` — Calls `reap_stuck_tasks()` before every concurrency check, emits event if tasks were reaped.
+
+### Fixed — Documentation Governance Debt (COE-012 through COE-017)
+- `README.md` — Fixed stale counts: hooks 16→17, ADRs 13→17, flows 13→14, tests 54→171. Removed disconnected `> Generate: python3 scripts/generate_reference_architecture.py` from hero section. Added `fde-repo-onboard` to hook table. Expanded Code to Docs cross-reference. Expanded Repo Structure tests section (2→14 files).
+- `docs/corrections-of-error.md` — Added COE-012 (doc drift recurrence), COE-013 (EventBridge multi-commit fix), COE-014 (Bedrock migration), COE-015 (bundled fixes), COE-016 (multi-project orchestration governance), COE-017 (React portal governance).
+- `docs/architecture/design-document.md` — Bumped to v3.1 (2026-05-07). Testing Design expanded (3→16 entries). Hook count 16→17. Open Question #2 resolved (Strands SDK deployed). Added ADR-017 to Key Design Decisions.
+
+---
+
 ## [Unreleased] — 2026-05-06
 
 ### Added — EventBridge Observability (COE-011)
