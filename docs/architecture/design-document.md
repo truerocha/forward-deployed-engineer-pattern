@@ -137,6 +137,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 - ADR-015: Repo Onboarding Agent — Phase 0 Codebase Reasoning
 - ADR-016: Ephemeral Catalog and Data Residency for Regulated Environments
 - ADR-017: React Portal for Factory Observability UX
+- ADR-018: Branch Evaluation Agent — Automated Quality Gate for Merge Readiness
 
 ## Testing Design
 

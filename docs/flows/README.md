@@ -21,3 +21,4 @@ Each Mermaid diagram represents the usability flow of a specific factory feature
 12. [Staff Engineer Onboarding Flow](12-staff-engineer-onboarding.md)
 13. [Cloud Orchestration Flow](13-cloud-orchestration.md)
 14. [Repo Onboarding Flow (Phase 0)](14-repo-onboarding.md)
+15. [Branch Evaluation Gate](15-branch-evaluation.md)

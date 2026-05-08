@@ -158,8 +158,8 @@ forward-deployed-engineer-pattern/
 |   +-- settings/                   # MCP config template
 +-- docs/
 |   +-- architecture/               # System diagram + design document (DDR)
-|   +-- adr/                        # 17 Architecture Decision Records
-|   +-- flows/                      # 14 Mermaid feature flow diagrams
+|   +-- adr/                        # 18 Architecture Decision Records
+|   +-- flows/                      # 15 Mermaid feature flow diagrams
 |   +-- blueprint/                  # V3 blueprint + artifacts + deploy guide
 |   +-- design/                     # V2 design document (research foundations)
 |   +-- guides/                     # Adoption guide with walkthroughs
@@ -235,8 +235,8 @@ The factory integrates with GitHub Actions and GitLab CI Ultimate (through mirro
 | [Blueprint](docs/blueprint/fde-blueprint-design.md) | Full architecture (16 sections) | You want to understand the design decisions |
 | [Hook Deploy Guide](docs/blueprint/fde-hooks-deploy-guide.md) | Exact JSON for all 17 hooks | You want to deploy or customize hooks |
 | [Design Document](docs/architecture/design-document.md) | Requirements, components, information flow | You want the formal tech design |
-| [Feature Flows](docs/flows/README.md) | 14 Mermaid diagrams | You want to see how each feature works |
-| [ADRs](docs/adr/) | 17 Architecture Decision Records | You want to understand why decisions were made |
+| [Feature Flows](docs/flows/README.md) | 15 Mermaid diagrams | You want to see how each feature works |
+| [ADRs](docs/adr/) | 18 Architecture Decision Records | You want to understand why decisions were made |
 | [V2 Design Doc](docs/design/forward-deployed-ai-engineers.md) | Research foundations | You want the academic grounding |
 | [Blogpost](docs/blogpost-autonomous-code-factory.md) | Public summary | You want to share with your team |
 

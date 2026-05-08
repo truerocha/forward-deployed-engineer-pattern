@@ -95,20 +95,92 @@ ARTIFACT_TYPE_PATTERNS: dict[str, list[str]] = {
 def classify_file(filepath: str) -> str:
     """Classify a single file into an artifact type.
 
-    Uses pattern matching against ARTIFACT_TYPE_PATTERNS.
+    Uses prefix and suffix matching against known path patterns.
     First match wins (patterns are ordered by specificity).
 
     Args:
         filepath: Relative path to the file from repo root.
 
     Returns:
-        Artifact type string (schema, code, knowledge, prompt,
-        infrastructure, documentation, test, hook, portal, other).
+        Artifact type string.
     """
-    for artifact_type, patterns in ARTIFACT_TYPE_PATTERNS.items():
-        for pattern in patterns:
-            if fnmatch(filepath, pattern):
-                return artifact_type
+    # Normalize path separators
+    fp = filepath.replace("\\", "/")
+
+    # Schema
+    if "schemas/" in fp and fp.endswith(".json"):
+        return "schema"
+    if fp.endswith(".schema.json"):
+        return "schema"
+
+    # Test (before code — tests are also .py)
+    if fp.startswith("tests/") and fp.endswith(".py"):
+        return "test"
+
+    # Code
+    if fp.startswith("src/") and fp.endswith(".py"):
+        return "code"
+    if fp.startswith("wafr/") and fp.endswith(".py"):
+        return "code"
+    if fp.startswith("lambdas/") and fp.endswith(".py"):
+        return "code"
+    if fp.startswith("infra/docker/agents/") and fp.endswith(".py"):
+        return "code"
+    if fp.startswith("infra/terraform/lambda/") and fp.endswith(".py"):
+        return "code"
+    if fp.startswith("scripts/") and fp.endswith(".py"):
+        return "code"
+
+    # Knowledge
+    if fp.startswith("config/mappings/"):
+        return "knowledge"
+    if fp.startswith("data/") and fp.endswith(".json"):
+        return "knowledge"
+    if fp.startswith("src/knowledge/") and fp.endswith(".py"):
+        return "knowledge"
+    if fp.startswith(".kiro/steering/") and fp.endswith(".md"):
+        return "knowledge"
+
+    # Prompt
+    if fp.startswith("prompts/"):
+        return "prompt"
+    if fp == "infra/docker/agents/prompts.py":
+        return "prompt"
+
+    # Hook
+    if fp.startswith(".kiro/hooks/") and fp.endswith(".hook"):
+        return "hook"
+
+    # Infrastructure
+    if fp.startswith("infra/terraform/") and fp.endswith(".tf"):
+        return "infrastructure"
+    if "Dockerfile" in fp:
+        return "infrastructure"
+    if fp.startswith("infra/docker/requirements"):
+        return "infrastructure"
+    if fp.startswith(".github/workflows/") and (fp.endswith(".yml") or fp.endswith(".yaml")):
+        return "infrastructure"
+
+    # Portal
+    if fp.startswith("infra/portal-src/"):
+        return "portal"
+    if fp.startswith("infra/dashboard/"):
+        return "portal"
+
+    # Documentation
+    if fp.startswith("docs/") and fp.endswith(".md"):
+        return "documentation"
+    if fp == "README.md":
+        return "documentation"
+    if fp == "CHANGELOG.md":
+        return "documentation"
+    if fp == "LICENSE":
+        return "documentation"
+
+    # Test (JSON fixtures)
+    if fp.startswith("tests/") and fp.endswith(".json"):
+        return "test"
+
     return "other"
 
 

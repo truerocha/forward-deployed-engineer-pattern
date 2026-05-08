@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-07
 
+### Added — Branch Evaluation Agent (ADR-018)
+- `infra/docker/agents/branch_evaluation/` — 7-module evaluation engine: artifact classifier (9 types, prefix/suffix matching), scoring engine (7 dimensions, weighted aggregate, veto rules, auto-merge eligibility), code evaluator (D1 structural, D2 convention, D3 backward compat, D5 test coverage, D7 documentation), domain evaluator (D4 alignment, D6 adversarial resilience), report renderer (markdown PR comment + JSON artifact), merge handler (auto-merge + issue-to-DONE via GitHub REST + GraphQL).
+- `docs/adr/ADR-018-branch-evaluation-agent.md` — Architecture decision: deterministic scoring, no LLM in scoring path, auto-merge for L1/L2 with score >= 8.0.
+- `docs/flows/15-branch-evaluation.md` — Flow diagram with Mermaid (6 phases: trigger → intake → evaluate → score → decide → action).
+- `tests/test_branch_evaluation.py` — 39 integration tests covering classifier, scoring engine, evaluators, report renderer, and full E2E pipeline.
+
 ### Added — Agent Brain → Portal CoT Bridge
 - `infra/docker/agents/stream_callback.py` — Rewrote `DashboardCallback` to implement Strands SDK `__call__(**kwargs)` interface. Captures tool invocations (from `contentBlockStart` events), reasoning markers (decision/conclusion/approach keywords), and structural text (## headers, ✅/❌ markers). Batches writes (max 1/5s, max 10/buffer) to avoid DynamoDB write amplification.
 - `infra/docker/agents/registry.py` — `create_agent()` now accepts optional `callback_handler` kwarg, passes to Strands `Agent()` constructor.
