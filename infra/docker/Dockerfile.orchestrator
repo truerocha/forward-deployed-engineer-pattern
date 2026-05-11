@@ -1,0 +1,28 @@
+FROM python:3.12-slim AS base
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl && rm -rf /var/lib/apt/lists/*
+
+COPY infra/docker/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy orchestration layer (src/core/orchestration/)
+COPY src/core/ /app/src/core/
+COPY src/__init__.py /app/src/__init__.py
+
+# Copy the monolith agents layer (needed for squad_prompts, tools, etc.)
+COPY infra/docker/agents/ /app/agents/
+
+# Copy orchestrator entrypoint
+COPY infra/docker/orchestrator_entrypoint.py .
+
+# Copy factory template artifacts
+COPY .kiro/ /app/.kiro/
+COPY docs/templates/ /app/docs/templates/
+
+RUN useradd -m -s /bin/bash orchestrator
+USER orchestrator
+
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["python3", "orchestrator_entrypoint.py"]
