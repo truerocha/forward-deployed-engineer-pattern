@@ -80,6 +80,7 @@ resource "aws_iam_role_policy" "eventbridge_ecs_run_task" {
         Resource = [
           aws_ecs_task_definition.strands_agent.arn,
           aws_ecs_task_definition.onboarding_agent.arn,
+          module.ecs_distributed.orchestrator_task_definition_arn,
         ]
         Condition = { ArnLike = { "ecs:cluster" = aws_ecs_cluster.factory.arn } }
       },
@@ -99,8 +100,16 @@ resource "aws_iam_role_policy" "eventbridge_ecs_run_task" {
 # ─── Targets: ECS RunTask with event passthrough ─────────────────
 
 locals {
+  # Two-way door: EXECUTION_MODE controls which task definition receives events.
+  # "monolith" → fde-dev-strands-agent (current, proven)
+  # "distributed" → fde-dev-orchestrator (new, Conductor pattern)
+  #
+  # Switching: change var.execution_mode in factory.tfvars and terraform apply.
+  # Rollback: set back to "monolith" and terraform apply (< 30s).
+  # Both task definitions remain deployed — only the EventBridge target changes.
   ecs_target_config = {
-    task_definition_arn = aws_ecs_task_definition.strands_agent.arn
+    task_definition_arn = var.execution_mode == "distributed" ? module.ecs_distributed.orchestrator_task_definition_arn : aws_ecs_task_definition.strands_agent.arn
+    container_name      = var.execution_mode == "distributed" ? "orchestrator" : "strands-agent"
     subnets             = module.vpc.private_subnet_ids
     security_groups     = [module.vpc.ecs_security_group_id]
   }
@@ -127,7 +136,7 @@ locals {
   input_transformer_template = <<-TEMPLATE
     {
       "containerOverrides": [{
-        "name": "strands-agent",
+        "name": "${var.execution_mode == "distributed" ? "orchestrator" : "strands-agent"}",
         "environment": [
           {"name": "EVENT_SOURCE", "value": "<source>"},
           {"name": "EVENT_DETAIL_TYPE", "value": "<detailType>"},

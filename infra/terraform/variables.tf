@@ -79,3 +79,14 @@ variable "tf_state_bucket" {
   type        = string
   default     = ""
 }
+
+# ─── Execution Mode: Two-Way Door (ADR-020) ─────────────────────
+variable "execution_mode" {
+  description = "Pipeline execution mode: monolith (single container) or distributed (Conductor + per-agent ECS tasks)"
+  type        = string
+  default     = "monolith"
+  validation {
+    condition     = contains(["monolith", "distributed"], var.execution_mode)
+    error_message = "execution_mode must be 'monolith' or 'distributed'."
+  }
+}
