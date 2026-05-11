@@ -29,6 +29,9 @@ DASHBOARD_DIR="infra/dashboard"
 DASHBOARD_SRC="$DASHBOARD_DIR/index.html"
 BUILD_FIRST=false
 
+# Default AWS profile for SSO authentication
+export AWS_PROFILE="${AWS_PROFILE:-profile-rocand}"
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
