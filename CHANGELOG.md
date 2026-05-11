@@ -15,8 +15,56 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `docs/adr/ADR-020-conductor-orchestration-pattern.md` — Architecture decision record documenting the choice of LLM-generated plans over static topology libraries or full RL training.
 - `src/core/orchestration/__init__.py` — Updated exports to include Conductor, WorkflowPlan, WorkflowStep, TopologyType, should_use_conductor, generate_conductor_manifest, execute_with_conductor.
 
+### Added — Orchestrator Container for Distributed Execution
+- `infra/docker/Dockerfile.orchestrator` — New container image for the distributed orchestrator. Clones workspace via EFS, dispatches agent tasks via ECS RunTask, monitors completion, and triggers delivery.
+- `infra/terraform/distributed-infra.tf` — ECS task definition for orchestrator container with EFS mount, IAM permissions for RunTask dispatch.
+
+### Added — Two-Way Door Execution Mode Switch (ADR-021)
+- `infra/terraform/eventbridge.tf` — `execution_mode` variable (`monolith` | `distributed`) switches EventBridge target between strands-agent and orchestrator task definitions. Rollback in <30s via `terraform apply`.
+- `docs/adr/ADR-021-two-way-door-distributed-execution.md` — Architecture decision record documenting the two-way door mechanism, alternatives rejected, and consequences.
+
+### Added — Explainability Layer for Pipeline Reasoning
+- `infra/docker/agents/explainability.py` — Reasoning rail that captures and structures agent decision points (why this approach, what alternatives considered, confidence level). Emits structured events to DynamoDB for portal visibility.
+
+### Added — ConductorPlanCard Portal Component
+- `infra/portal-src/src/components/ConductorPlanCard.tsx` — Visualizes Conductor-generated WorkflowPlans: topology graph, agent assignments, subtask instructions, and execution progress.
+
 ### Changed — Agent Runner Conductor Integration
 - `src/core/orchestration/agent_runner.py` — `_build_system_prompt()` now reads `AGENT_SUBTASK` env var for Conductor-generated focused instructions (falls back to generic role prompt when absent). `_load_scd_context()` now respects `AGENT_ACCESS_LIST` env var for communication topology enforcement (falls back to loading all previous stages when absent). Both changes are backward-compatible.
+
+### Changed — Stream Callback Tool Noise Filter
+- `infra/docker/agents/stream_callback.py` — Added signal/noise classification for tool calls. Low-signal tools aggregated into summaries; high-signal tools emit full events. Reduces DynamoDB write volume and improves portal readability.
+
+### Changed — Factory Data Mapper (Timeline + DORA Empty State)
+- `infra/portal-src/src/mappers/factoryDataMapper.ts` — Client-side noise filter for timeline events. DORA metrics empty state handling (shows placeholder when no completed tasks exist). Aggregates consecutive same-type tool calls.
+
+### Changed — Portal Delivery Badge
+- `infra/portal-src/src/App.tsx` — Replaced cryptic "NO PR" amber badge with clear delivery status indicators: "Delivered", "Pending Push", "Push Failed (retry)". Tooltip shows failure reason when applicable.
+
+### Changed — EventBridge Execution Mode Routing
+- `infra/terraform/eventbridge.tf` — Conditional target selection based on `execution_mode` variable. Both task definition ARNs referenced; only the active one receives events.
+
+### Fixed — PII Removal from Tracked Files
+- Removed all hardcoded account IDs, profile names, and email addresses from tracked files. Replaced with environment variable references and placeholders.
+
+### Fixed — AWS_PROFILE Default for SSO Auth
+- `infra/terraform/providers.tf` — Removed hardcoded profile name. Uses `AWS_PROFILE` environment variable (defaults to `profile-rocand` for SSO authentication when not set).
+
+### Fixed — Push Stale Ref on Re-Worked Tasks (COE-021)
+- `infra/docker/agents/workspace_setup.py` — Added `_fetch_remote_branch()` before push, `_find_existing_pr()` + `_update_pr()` for re-worked tasks. Hybrid safe push strategy handles all retry scenarios.
+
+### Fixed — Portal Timeline Noise (COE-022)
+- `infra/docker/agents/stream_callback.py` — Tool-call noise filter with signal/noise classification.
+- `infra/portal-src/src/mappers/factoryDataMapper.ts` — Client-side noise filter + aggregation.
+- `infra/portal-src/src/App.tsx` — Renamed "Chain of Thought" → "Pipeline Activity".
+
+### Fixed — Cryptic 'NO PR' Badge
+- `infra/portal-src/src/App.tsx` — Replaced raw "NO PR" badge with meaningful delivery status that distinguishes between "not yet pushed", "push failed", and "delivered".
+
+### Security
+- Removed all hardcoded AWS account IDs, profile names, and email addresses from source-controlled files.
+- Added `docs/example/` and `cloud-inventory.md` to `.gitignore` to prevent accidental PII commits.
+- `AWS_PROFILE` sourced from environment variable instead of hardcoded in Terraform provider configuration.
 
 ---
 

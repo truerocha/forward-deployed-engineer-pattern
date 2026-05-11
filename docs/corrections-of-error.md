@@ -6,6 +6,43 @@
 
 ---
 
+## COE-022: Portal Timeline Showing Raw Tool Calls
+
+- **Date**: 2026-05-11
+- **Severity**: Observability (P3)
+- **Found in**: Portal "Chain of Thought" view showing "Tool #36: run_shell_command" ×50 — raw tool invocations with no signal/noise classification, making the timeline unusable for understanding pipeline reasoning.
+- **Root cause**: `DashboardCallback._handle_tool_start()` in `stream_callback.py` emitted every tool call event to DynamoDB without distinguishing high-signal actions (file writes, git operations, test runs) from low-signal noise (shell commands, directory listings, file reads). The portal rendered all events equally, burying meaningful activity under repetitive noise.
+- **Fixes applied**:
+  - ✅ **stream_callback.py** — Added signal/noise classification. Low-signal tools (run_shell_command, read_file, list_directory) are aggregated into periodic summaries instead of individual events. High-signal tools (write_file, git_commit, run_tests) emit full events.
+  - ✅ **factoryDataMapper.ts** — Client-side noise filter removes residual low-signal events from the timeline. Aggregates consecutive tool calls of the same type into "N operations" summaries. Added DORA empty state handling.
+  - ✅ **Renamed view** — "Chain of Thought" → "Pipeline Activity" to better reflect the curated content.
+- **Files modified**:
+  - `infra/docker/agents/stream_callback.py` — Tool classification + aggregation logic
+  - `infra/portal-src/src/mappers/factoryDataMapper.ts` — Client-side noise filter + DORA empty state handling
+  - `infra/portal-src/src/App.tsx` — View rename + delivery status badge fix
+- **Prevention**: Tool classification is now the default — new tools added to the agent must be categorized as signal or noise in the callback configuration.
+
+---
+
+## COE-021: Push Rejected on Re-Worked Tasks (Stale Ref)
+
+- **Date**: 2026-05-11
+- **Severity**: Delivery (P2)
+- **Found in**: TASK-19d68ad5 (GH-91 task 5) — pipeline completed all 7 agents successfully but `git push --force-with-lease` failed with "stale info" error. The PR was never created despite all code being generated correctly.
+- **Root causes** (2 distinct failures):
+  1. **workspace_setup didn't fetch remote feature branch before push** — When re-working a task that already has a remote branch, `--force-with-lease` compares against the local ref (which is stale). The remote branch had been updated by a previous pipeline run, but the local workspace never fetched the latest remote state.
+  2. **Rebase retry failed due to unstaged changes** — The fallback rebase-and-retry logic (added in COE-019) failed because `swe-dtl-commiter-agent` left unstaged changes in the workspace. `git rebase` refuses to run with a dirty working tree.
+- **Fixes applied**:
+  - ✅ **`_fetch_remote_branch()`** — New helper fetches the remote feature branch before any push attempt, ensuring `--force-with-lease` has accurate remote ref state.
+  - ✅ **`_find_existing_pr()`** — Checks if a PR already exists for the branch (re-worked tasks). If found, updates the existing PR instead of creating a new one.
+  - ✅ **`_update_pr()`** — Updates existing PR title/body when re-pushing to an existing branch.
+  - ✅ **Hybrid safe push strategy** — Sequence: fetch remote → attempt push → if stale, stash + rebase + pop + retry → if PR exists, update instead of create.
+- **Files modified**:
+  - `infra/docker/agents/workspace_setup.py` — `_fetch_remote_branch()`, `_find_existing_pr()`, `_update_pr()`, hybrid push logic
+- **Prevention**: Hybrid safe push strategy now handles all retry scenarios (fresh push, re-work push, stale ref recovery). The push path is no longer a single-shot operation.
+
+---
+
 ## COE-020: ECS platform mismatch (arm64→amd64) + single-model infra + stale EventBridge targets
 
 - **Date**: 2026-05-08
