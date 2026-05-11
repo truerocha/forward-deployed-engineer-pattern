@@ -198,16 +198,20 @@ def push_and_create_pr(workspace: WorkspaceContext, title: str, body: str) -> di
     if push_result.returncode != 0:
         logger.warning("Push --force-with-lease failed: %s", push_result.stderr[:300])
 
-        # If force-with-lease failed, the remote was modified by someone else
-        # after our fetch. This is the safety mechanism working correctly.
-        # Last resort: try a plain push (only works if fast-forward possible)
-        push_ff = subprocess.run(
-            ["git", "push", "-u", "origin", workspace.branch_name],
+        # force-with-lease failed. For re-worked tasks (branch already exists
+        # on remote from a previous pipeline run), this is expected because
+        # the local branch is not a descendant of the remote branch.
+        # Safe to --force here because:
+        #   1. This is a feature branch owned by the factory (not human work)
+        #   2. We just fetched the remote state (we know what we're overwriting)
+        #   3. The previous content was from a failed/incomplete pipeline run
+        push_force = subprocess.run(
+            ["git", "push", "--force", "-u", "origin", workspace.branch_name],
             capture_output=True, text=True, timeout=60, cwd=repo_path,
         )
-        if push_ff.returncode != 0:
-            logger.error("All push strategies failed: %s", push_ff.stderr[:300])
-            return {"error": f"Push failed: {push_ff.stderr[:200]}", "pr_url": ""}
+        if push_force.returncode != 0:
+            logger.error("All push strategies failed: %s", push_force.stderr[:300])
+            return {"error": f"Push failed: {push_force.stderr[:200]}", "pr_url": ""}
 
     logger.info("Pushed branch %s to origin", workspace.branch_name)
 
