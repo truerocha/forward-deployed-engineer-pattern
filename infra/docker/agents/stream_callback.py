@@ -94,46 +94,92 @@ class DashboardCallback:
             self._handle_complete()
 
     def _handle_tool_start(self, tool_use: dict) -> None:
-        """Handle a tool invocation event.
+        """Handle a tool invocation event with contextual observability.
 
-        Filters low-value tool calls (shell commands, file reads) and only
-        surfaces meaningful tool usage to the dashboard. Aggregates routine
-        operations into periodic summary events.
+        Emits what the agent is DOING, not just which tool it called.
+        This provides the same baseline observability regardless of which
+        container (monolith or distributed) is executing.
 
-        Signal vs Noise:
-          HIGH signal: create_pull_request, run_tests, bedrock_invoke, git_push
-          LOW signal: run_shell_command, read_file, write_file, list_directory, str_replace
-
-        Low-signal tools are counted but not individually emitted.
-        A summary is emitted every 10 low-signal calls.
+        Observability tiers:
+          MILESTONE: Always emit with full context (file writes, git ops, tests)
+          CONTEXT: Emit with file path/description (file reads, searches)
+          AGGREGATE: Count silently, emit summary every 10 (shell commands)
         """
         self._tool_count += 1
         tool_name = tool_use.get("name", "unknown")
+        tool_input = tool_use.get("toolUseId", "")
 
-        # High-signal tools — always emit
-        high_signal_tools = {
+        # -- MILESTONE tools: always emit with context --
+        milestone_tools = {
             "create_pull_request", "create_github_pull_request",
-            "create_gitlab_merge_request", "run_tests", "pytest",
-            "bedrock_invoke", "converse", "git_push", "git_commit",
-            "human_input", "create_branch",
+            "create_gitlab_merge_request", "git_push", "git_commit",
+            "human_input", "create_branch", "run_tests", "pytest",
         }
-
-        if tool_name in high_signal_tools:
-            summary = f"\u25B6 {tool_name}"
-            self._buffer.append({"type": "tool", "msg": summary[:200]})
+        if tool_name in milestone_tools:
+            self._flush_aggregate()
+            self._buffer.append({"type": "tool", "msg": f"\u25B6 {tool_name}"})
             self._maybe_flush()
             return
 
-        # Low-signal tools — aggregate into periodic summaries
+        # -- CONTEXT tools: emit with what's being accessed --
+        context_tools = {
+            "write_file": "Writing",
+            "str_replace": "Editing",
+            "fs_write": "Creating",
+            "read_file": "Reading",
+            "readCode": "Analyzing",
+            "grep_search": "Searching",
+            "file_search": "Finding",
+            "list_directory": "Exploring",
+        }
+        if tool_name in context_tools:
+            action = context_tools[tool_name]
+            if not hasattr(self, "_context_count"):
+                self._context_count = 0
+                self._last_context_action = ""
+            self._context_count += 1
+            self._last_context_action = action
+
+            # Emit summary every 5 context operations
+            if self._context_count % 5 == 0:
+                self._flush_aggregate()
+                self._buffer.append({
+                    "type": "info",
+                    "msg": f"{action} files ({self._context_count} ops so far)...",
+                })
+                self._maybe_flush()
+            return
+
+        # -- AGGREGATE tools: count silently, summarize periodically --
         if not hasattr(self, "_low_signal_count"):
             self._low_signal_count = 0
         self._low_signal_count += 1
 
         # Emit summary every 10 low-signal calls
         if self._low_signal_count % 10 == 0:
-            summary = f"Processing ({self._low_signal_count} operations)..."
-            self._buffer.append({"type": "info", "msg": summary})
+            self._buffer.append({
+                "type": "info",
+                "msg": f"Executing ({self._low_signal_count} shell operations)...",
+            })
             self._maybe_flush()
+
+    def _flush_aggregate(self) -> None:
+        """Flush any pending aggregate counts as a summary before a milestone."""
+        if hasattr(self, "_low_signal_count") and self._low_signal_count > 0:
+            if self._low_signal_count >= 3:
+                self._buffer.append({
+                    "type": "info",
+                    "msg": f"Completed {self._low_signal_count} shell operations",
+                })
+            self._low_signal_count = 0
+        if hasattr(self, "_context_count") and self._context_count > 0:
+            action = getattr(self, "_last_context_action", "Processing")
+            if self._context_count >= 3:
+                self._buffer.append({
+                    "type": "info",
+                    "msg": f"{action}: {self._context_count} file operations completed",
+                })
+            self._context_count = 0
 
     def _handle_reasoning(self, text: str) -> None:
         """Handle reasoning text — capture key decision markers only."""
