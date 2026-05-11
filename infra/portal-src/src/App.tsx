@@ -330,12 +330,20 @@ export default function App() {
                         <span className="text-xs font-bold text-dynamic">{task.title}</span>
                       </div>
                       <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded ${
+                        task.pr_url ? 'bg-emerald-500/20 text-emerald-400' :
                         task.status === 'running' || task.status === 'IN_PROGRESS' ? 'bg-aws-orange/20 text-aws-orange' :
                         task.status === 'completed' || task.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
-                        task.status === 'completed_no_delivery' ? 'bg-amber-500/20 text-amber-400' :
+                        task.status === 'completed_no_delivery' || task.pr_error ? 'bg-amber-500/20 text-amber-400' :
                         task.status === 'failed' || task.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
                         'bg-slate-500/20 text-slate-400'
-                      }`}>{task.status === 'completed_no_delivery' ? 'NO PR' : (task.current_stage || task.status)}</span>
+                      }`}>{
+                        task.pr_url ? 'PR Delivered' :
+                        task.status === 'completed_no_delivery' ? 'Delivery Failed' :
+                        task.pr_error ? 'Push Failed' :
+                        task.status === 'running' || task.status === 'IN_PROGRESS' ? (task.current_stage || 'running') :
+                        task.status === 'completed' || task.status === 'COMPLETED' ? 'Complete' :
+                        (task.current_stage || task.status)
+                      }</span>
                     </div>
                     <div className="flex items-center gap-4 text-[10px] text-secondary-dynamic font-mono">
                       <span className="flex items-center gap-1">
