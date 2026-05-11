@@ -53,7 +53,7 @@ portal-deploy-build:
 # ECR URL is resolved from Terraform outputs (no hardcoding)
 ECR_URL := $(shell terraform -chdir=infra/terraform output -raw ecr_repository_url 2>/dev/null)
 AWS_REGION ?= us-east-1
-AWS_PROFILE ?= profile-rocand
+AWS_PROFILE ?= $(shell echo $${AWS_PROFILE:-default})
 export AWS_PROFILE
 
 .PHONY: docker-login docker-build docker-build-adot docker-push-all docker-deploy

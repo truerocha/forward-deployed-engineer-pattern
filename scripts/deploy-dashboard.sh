@@ -29,8 +29,8 @@ DASHBOARD_DIR="infra/dashboard"
 DASHBOARD_SRC="$DASHBOARD_DIR/index.html"
 BUILD_FIRST=false
 
-# Default AWS profile for SSO authentication
-export AWS_PROFILE="${AWS_PROFILE:-profile-rocand}"
+# Default AWS profile from environment (user sets via AWS_PROFILE env var or .env)
+export AWS_PROFILE="${AWS_PROFILE:-default}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
