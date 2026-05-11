@@ -2,7 +2,7 @@
 
 > Date: 2026-05-07
 > Target: `infra/dashboard/`
-> Deploy: `bash scripts/deploy-dashboard.sh --profile profile-rocand`
+> Deploy: `bash scripts/deploy-dashboard.sh --profile your-sso-profile`
 > Live URL: https://d3btj6a4igoa8k.cloudfront.net
 > API Base: https://4qhn5ly26e.execute-api.us-east-1.amazonaws.com
 
@@ -16,7 +16,7 @@ O portal desenvolvido externamente será importado para substituir o dashboard a
 
 | Componente | ID | Função |
 |-----------|-----|--------|
-| S3 Bucket | `fde-dev-artifacts-785640717688` | Armazena os arquivos do dashboard em `/dashboard/*` |
+| S3 Bucket | `fde-dev-artifacts-YOUR_ACCOUNT_ID` | Armazena os arquivos do dashboard em `/dashboard/*` |
 | CloudFront | `E2RBVCKZAI7R6I` | CDN que serve o portal (HTTPS, edge caching) |
 | CloudFront OAC | — | Permite CloudFront ler do S3 (bucket é privado) |
 | API Gateway | `4qhn5ly26e` | Serve os endpoints `/status/*` que o portal consome |
@@ -197,18 +197,18 @@ sed -i '' 's|<meta charset="utf-8">|<meta charset="utf-8">\n<meta name="factory-
 ### Passo 5: Deploy
 
 ```bash
-bash scripts/deploy-dashboard.sh --profile profile-rocand
+bash scripts/deploy-dashboard.sh --profile your-sso-profile
 ```
 
 Output esperado:
 ```
 ━━━ Deploy Dashboard ━━━
   → Reading terraform outputs...
-  ✅ Account: 785640717688
+  ✅ Account: YOUR_ACCOUNT_ID
   ✅ API URL: https://4qhn5ly26e.execute-api.us-east-1.amazonaws.com
-  ✅ Bucket: fde-dev-artifacts-785640717688
+  ✅ Bucket: fde-dev-artifacts-YOUR_ACCOUNT_ID
   → Injecting API URL into dashboard...
-  → Syncing dashboard to s3://fde-dev-artifacts-785640717688/dashboard/ (SSE-S3)...
+  → Syncing dashboard to s3://fde-dev-artifacts-YOUR_ACCOUNT_ID/dashboard/ (SSE-S3)...
   → Invalidating CloudFront cache (E2RBVCKZAI7R6I)...
   ✅ Cache invalidation in progress
 
@@ -328,7 +328,7 @@ Se a importação der errado e precisar voltar ao portal anterior:
 git checkout -- infra/dashboard/
 
 # Re-deploy
-bash scripts/deploy-dashboard.sh --profile profile-rocand
+bash scripts/deploy-dashboard.sh --profile your-sso-profile
 ```
 
 ---

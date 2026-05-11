@@ -24,7 +24,7 @@ This guide covers the prerequisites for deploying the Code Factory infrastructur
 The factory uses AWS IAM Identity Center (SSO) for authentication. Configure your profile once:
 
 ```bash
-aws configure sso --profile profile-rocand
+aws configure sso --profile your-sso-profile
 ```
 
 You'll be prompted for:
@@ -35,7 +35,7 @@ You'll be prompted for:
 | SSO start URL | `https://your-org.awsapps.com/start` |
 | SSO region | `us-east-1` |
 | SSO registration scopes | `sso:account:access` |
-| Account ID | `785640717688` |
+| Account ID | `YOUR_ACCOUNT_ID` |
 | Role name | `AdministratorAccess` |
 | CLI default region | `us-east-1` |
 | CLI default output | `json` |
@@ -47,7 +47,7 @@ This creates an entry in `~/.aws/config`. You only need to do this once.
 If you're not using SSO, configure static credentials:
 
 ```bash
-aws configure --profile profile-rocand
+aws configure --profile your-sso-profile
 # Enter: AWS Access Key ID, Secret Access Key, region, output format
 ```
 
@@ -66,7 +66,7 @@ export AWS_DEFAULT_REGION="us-east-1"
 SSO sessions expire (typically 8–12 hours). Before any Terraform operation, authenticate:
 
 ```bash
-aws sso login --profile profile-rocand
+aws sso login --profile your-sso-profile
 ```
 
 This opens a browser for the OAuth flow. After approval, your session is cached locally.
@@ -74,7 +74,7 @@ This opens a browser for the OAuth flow. After approval, your session is cached 
 ### Verify Authentication
 
 ```bash
-aws sts get-caller-identity --profile profile-rocand
+aws sts get-caller-identity --profile your-sso-profile
 ```
 
 Expected output:
@@ -82,8 +82,8 @@ Expected output:
 ```json
 {
   "UserId": "AROA...:your-username",
-  "Account": "785640717688",
-  "Arn": "arn:aws:sts::785640717688:assumed-role/AWSReservedSSO_AdministratorAccess_.../your-username"
+  "Account": "YOUR_ACCOUNT_ID",
+  "Arn": "arn:aws:sts::YOUR_ACCOUNT_ID:assumed-role/AWSReservedSSO_AdministratorAccess_.../your-username"
 }
 ```
 
@@ -92,13 +92,13 @@ Expected output:
 Terraform reads credentials via the `AWS_PROFILE` environment variable:
 
 ```bash
-export AWS_PROFILE=profile-rocand
+export AWS_PROFILE=your-sso-profile
 ```
 
 Add to your shell rc file (`~/.zshrc` or `~/.bashrc`) for persistence:
 
 ```bash
-echo 'export AWS_PROFILE=profile-rocand' >> ~/.zshrc
+echo 'export AWS_PROFILE=your-sso-profile' >> ~/.zshrc
 ```
 
 ---
@@ -160,10 +160,10 @@ Always plan before applying:
 
 ```bash
 # Plan (review what will be created)
-AWS_PROFILE=profile-rocand terraform -chdir=infra/terraform plan -var-file=factory.tfvars
+AWS_PROFILE=your-sso-profile terraform -chdir=infra/terraform plan -var-file=factory.tfvars
 
 # Apply (create resources)
-AWS_PROFILE=profile-rocand terraform -chdir=infra/terraform apply -var-file=factory.tfvars
+AWS_PROFILE=your-sso-profile terraform -chdir=infra/terraform apply -var-file=factory.tfvars
 ```
 
 Expected plan output for a fresh deployment: **74 to add, 0 to change, 0 to destroy**.
@@ -186,7 +186,7 @@ Expected plan output for a fresh deployment: **74 to add, 0 to change, 0 to dest
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `No valid credential sources found` | SSO session expired or `AWS_PROFILE` not set | `aws sso login --profile profile-rocand` then `export AWS_PROFILE=profile-rocand` |
+| `No valid credential sources found` | SSO session expired or `AWS_PROFILE` not set | `aws sso login --profile your-sso-profile` then `export AWS_PROFILE=your-sso-profile` |
 | `No configuration files` | Running terraform from wrong directory | Use `-chdir=infra/terraform` or `cd infra/terraform` first |
 | `failed to refresh cached credentials, no EC2 IMDS role found` | Running outside AWS (no instance role) and no local credentials | Authenticate via SSO or static credentials |
 | `Error: Unsupported Terraform Core version` | Terraform < 1.5.0 | Upgrade: `brew upgrade terraform` |
@@ -199,7 +199,7 @@ Expected plan output for a fresh deployment: **74 to add, 0 to change, 0 to dest
 To destroy all resources:
 
 ```bash
-AWS_PROFILE=profile-rocand terraform -chdir=infra/terraform destroy -var-file=factory.tfvars
+AWS_PROFILE=your-sso-profile terraform -chdir=infra/terraform destroy -var-file=factory.tfvars
 ```
 
 Or use the project teardown script:
@@ -221,7 +221,7 @@ bash scripts/teardown-fde.sh --dry-run
 After the stack is deployed, store your ALM tokens in Secrets Manager (see [auth-setup.md](./auth-setup.md) for token creation):
 
 ```bash
-AWS_PROFILE=profile-rocand aws secretsmanager put-secret-value \
+AWS_PROFILE=your-sso-profile aws secretsmanager put-secret-value \
   --secret-id "fde-dev/alm-tokens" \
   --secret-string '{
     "GITHUB_TOKEN": "ghp_...",
@@ -242,8 +242,8 @@ If you set `alert_email`, check your inbox for the SNS subscription confirmation
 
 ```bash
 # Full deploy sequence
-aws sso login --profile profile-rocand
-export AWS_PROFILE=profile-rocand
+aws sso login --profile your-sso-profile
+export AWS_PROFILE=your-sso-profile
 terraform -chdir=infra/terraform init
 terraform -chdir=infra/terraform plan -var-file=factory.tfvars
 terraform -chdir=infra/terraform apply -var-file=factory.tfvars

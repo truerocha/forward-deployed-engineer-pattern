@@ -1,20 +1,59 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# FDE Code Factory — Observability Portal
 
-# Run and deploy your AI Studio app
+The Code Factory portal is a React SPA (Vite + Tailwind) that provides real-time observability into the distributed squad execution pipeline.
 
-This contains everything you need to run your app locally.
+## Components
 
-View your app in AI Studio: https://ai.studio/apps/5882a02c-c7fd-4155-86da-7092c81e0925
+- **DoraCard** — DORA metrics per autonomy level
+- **CostCard** — Token usage and cost tracking
+- **SquadExecutionCard** — Per-agent status and progress
+- **ConductorPlanCard** — Workflow topology visualization (ADR-020)
+- **BrainSimCard** — Fidelity scoring and emulation metrics
+- **LiveTimeline** — Real-time event stream
+- **MaturityRadar** — 7-capability system maturity
+- **PersonaRouter** — Role-based view filtering (Staff SWE / SRE / TPM)
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js 18+
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+
+2. Configure environment (copy from example):
+   ```bash
+   cp .env.example .env.local
+   ```
+   Edit `.env.local` with your API Gateway URL (from Terraform outputs).
+
+3. Run the dev server:
+   ```bash
+   npm run dev
+   ```
+
+## Build for Production
+
+```bash
+npm run build
+```
+
+Output goes to `dist/` and is synced to `infra/dashboard/` by the deploy script.
+
+## Deploy
+
+```bash
+# From repo root:
+export AWS_PROFILE=your-sso-profile
+bash scripts/deploy-dashboard.sh --build
+```
+
+## Architecture
+
+- **Framework**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS
+- **Animations**: Motion (framer-motion)
+- **Icons**: Lucide React
+- **Data**: Fetches from API Gateway (`/status/tasks`) via `factoryService.ts`
+- **Hosting**: S3 + CloudFront (OAC, SSE-S3 encryption)

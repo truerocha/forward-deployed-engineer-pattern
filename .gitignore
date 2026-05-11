@@ -34,6 +34,10 @@ docs/internal/blogpost-*.md
 
 # Internal planning documents (not for public repo)
 docs/design/task-plan-fde.md
+benchmarking-fde-analysis.md
+docs/flight_log_v1.md
+docs/cloud-inventory.md
+docs/example/
 
 # Mirror automation (internal only — not for public GitHub)
 scripts/mirror-push.sh

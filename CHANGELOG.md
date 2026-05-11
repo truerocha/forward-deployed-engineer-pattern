@@ -171,8 +171,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `README.md` — Added [AWS Deployment Setup](docs/guides/deployment-setup.md) and [Auth Setup](docs/guides/auth-setup.md) to the Documentation Index table.
 
 ### Infrastructure Deployed
-- Stack applied to AWS account 785640717688 (us-east-1): 74 resources total (4 added, 3 changed, 1 destroyed in final apply).
-- SNS email subscription created for `rocand@amazon.com` (pending confirmation).
+- Stack applied to AWS account (us-east-1): 74 resources total (4 added, 3 changed, 1 destroyed in final apply).
+- SNS email subscription created (pending confirmation).
 
 ---
 
@@ -358,7 +358,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added — E2E Validation and Teardown
 - `scripts/validate-e2e-cloud.sh` — validates all 7 cloud resource categories: Terraform outputs, API Gateway webhooks, EventBridge bus/rules/events, S3 read/write, Secrets Manager, ECR repo/images, ECS cluster/task definition
 - `scripts/teardown-fde.sh` — two modes: Terraform destroy (preferred) and tag-based cleanup (fallback), with dry-run preview
-- E2E validation result: 21 passed, 0 failed, 0 warnings against live AWS account 785640717688
+- E2E validation result: 21 passed, 0 failed, 0 warnings against live AWS account
 
 ### Added — Documentation
 - Flow 13: Cloud Orchestration (`docs/flows/13-cloud-orchestration.md`)

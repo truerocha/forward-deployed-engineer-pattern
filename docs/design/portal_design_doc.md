@@ -12,7 +12,7 @@
 The Code Factory pipeline executes autonomously — agents ingest tasks, run reconnaissance, engineer solutions, and deliver PRs. But the **human stakeholders** (PM, Staff Engineer, Tech Lead) had no way to understand *what the factory decided and why* without running:
 
 ```bash
-AWS_PROFILE=profile-rocand aws logs tail /ecs/fde-dev --follow --since 1m --region us-east-1
+AWS_PROFILE=your-sso-profile aws logs tail /ecs/fde-dev --follow --since 1m --region us-east-1
 ```
 
 This is unacceptable for a PM. The original dashboard was a flat 3-panel real-time monitor (agents | flow | logs) with:
@@ -361,21 +361,21 @@ Events emitted by the orchestrator now include optional structured fields:
 ### 7.1 Dashboard Deploy
 
 ```bash
-bash scripts/deploy-dashboard.sh --profile profile-rocand
+bash scripts/deploy-dashboard.sh --profile your-sso-profile
 ```
 
 What it does:
 1. Reads API URL from `terraform output`
 2. Injects URL into `index.html` via `<meta>` tag (`sed`)
 3. Copies entire `infra/dashboard/` directory to a temp folder
-4. Runs `aws s3 sync` to `s3://fde-dev-artifacts-785640717688/dashboard/`
+4. Runs `aws s3 sync` to `s3://fde-dev-artifacts-YOUR_ACCOUNT_ID/dashboard/`
 5. Invalidates CloudFront cache (`/*`)
 
 ### 7.2 Infrastructure Deploy
 
 ```bash
 cd infra/terraform
-AWS_PROFILE=profile-rocand terraform apply -var-file=factory.tfvars
+AWS_PROFILE=your-sso-profile terraform apply -var-file=factory.tfvars
 ```
 
 Phase B added:
