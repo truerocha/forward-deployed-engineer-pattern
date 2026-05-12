@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-12
 
+### Added — Persona-Based Portal UX + DORA Sun Card (PEC Blueprint Ch. 11-12)
+- `infra/portal-src/src/components/DoraSunCard.tsx` — Radial health pulse gauge (0-100) with pulsing animation, DORA level badge, 7d projection, per-metric trend arrows, and weakest link identification. Consumes `DoraForecastEngine` output via API.
+- `infra/portal-src/src/components/PersonaFilteredCards.tsx` — Role-based card filtering. Each persona (PM/SWE/SRE/Architect/Staff) sees a curated 5-8 card subset. Single source of truth for visibility matrix. Reduces cognitive load per the PEC Blueprint's "Economia de Atenção" principle.
+- `infra/portal-src/src/App.tsx` — Wired `PersonaRouter` to `PersonaFilteredCards` with `activePersona` state. Observability view now renders only persona-relevant cards instead of all 13.
+
+### Added — Code Knowledge Base Integration (AI-DLC Gap 1)
+- `infra/docker/agents/tools.py` — New `query_code_kb` @tool function exposing the QueryAPI to agents. Supports 5 search modes: semantic, function, callers, callees, module. Added to RECON_TOOLS and ENGINEERING_TOOLS.
+- `src/core/knowledge/incremental_indexer.py` — Re-indexes only changed files (from git diff or PR file list). Delegates to CallGraphExtractor, DescriptionGenerator, and VectorStore. Idempotent. Feature flag: INCREMENTAL_INDEX_ENABLED.
+- `src/core/knowledge/query_api.py` — Upgraded `search_by_description()` from vector-only-with-keyword-fallback to true hybrid search: 0.6 × vector_similarity + 0.4 × keyword_overlap. Both paths always run; results merged by module_path.
+
 ### Added — DORA Forecast Engine (PEC Blueprint Ch. 11)
 - `src/core/metrics/dora_forecast.py` — Predictive DORA metrics engine using EWMA (Exponential Weighted Moving Average) projection. Computes trend direction (improving/stable/degrading) per metric, projects DORA levels at T+7d and T+30d, identifies the "weakest link" metric, integrates with Risk Inference Engine for risk-adjusted CFR, and emits a health pulse (0-100) for the portal "DORA Sun" visualization.
 - `tests/test_dora_forecast.py` — 33 tests covering EWMA computation, trend classification, level classification, weakest link identification, health pulse, risk integration, serialization, and 3 end-to-end scenarios (Elite/degrading/recovering teams).

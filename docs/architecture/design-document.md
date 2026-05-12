@@ -103,6 +103,10 @@ See `docs/architecture/reference-architecture.png` for the full AWS reference ar
 | Branch Evaluation Workflow | `.github/workflows/evaluate-branch.yml` | GitHub Action: PR trigger → evaluate → comment → check status → auto-merge |
 | Branch Evaluation Hook | `.kiro/hooks/fde-branch-eval.kiro.hook` | Local userTriggered evaluation via Kiro agent |
 | Risk Inference Engine | `src/core/risk/` (3 modules) | Bayesian P(Failure\|Context) scoring: 13 signals → sigmoid → classification (pass/warn/escalate/block) with SHAP-like explanations and self-improving weights |
+| DORA Forecast Engine | `src/core/metrics/dora_forecast.py` | Predictive DORA metrics: EWMA projection, level forecasting (T+7d, T+30d), weakest link identification, health pulse (0-100) for portal DORA Sun |
+| Code KB Query Tool | `infra/docker/agents/tools.py` (`query_code_kb`) | Agent-callable @tool exposing QueryAPI with 5 search modes (semantic, function, callers, callees, module) |
+| Incremental Indexer | `src/core/knowledge/incremental_indexer.py` | Re-indexes only changed files on PR merge; delegates to CallGraphExtractor + DescriptionGenerator + VectorStore |
+| Persona Portal UX | `infra/portal-src/src/components/PersonaFilteredCards.tsx` + `DoraSunCard.tsx` | Role-based card filtering (PM/SWE/SRE/Architect/Staff) + DORA Sun health pulse visualization |
 | IAM Validator | `scripts/validate-aws-iam.py` | Per-service AWS IAM permission checks |
 | Provision Script | `scripts/provision-workspace.sh` | Legacy manual onboarding (--global / --project) |
 
@@ -166,6 +170,8 @@ See `docs/adr/` for detailed Architecture Decision Records:
 | Language Lint | `python3 scripts/lint_language.py` | Violent, trauma, weasel word detection |
 | Full Suite | `python3 -m pytest tests/ -v` | All 171 tests across 15 test files |
 | Risk Inference Engine | `python3 -m pytest tests/test_risk_inference_engine.py` | 33 tests: signal extraction, inference, thresholds, XAI, optimizer, scenarios |
+| DORA Forecast Engine | `python3 -m pytest tests/test_dora_forecast.py` | 33 tests: EWMA, trend classification, level projection, health pulse, risk integration |
+| Knowledge Pipeline | `python3 -m pytest tests/integration/test_knowledge_pipeline.py` | Call graph extraction, descriptions, vector store, query API, annotations, quality |
 
 ## Open Questions
 
