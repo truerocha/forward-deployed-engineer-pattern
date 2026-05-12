@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-12
 
+### Added — DORA Forecast Engine (PEC Blueprint Ch. 11)
+- `src/core/metrics/dora_forecast.py` — Predictive DORA metrics engine using EWMA (Exponential Weighted Moving Average) projection. Computes trend direction (improving/stable/degrading) per metric, projects DORA levels at T+7d and T+30d, identifies the "weakest link" metric, integrates with Risk Inference Engine for risk-adjusted CFR, and emits a health pulse (0-100) for the portal "DORA Sun" visualization.
+- `tests/test_dora_forecast.py` — 33 tests covering EWMA computation, trend classification, level classification, weakest link identification, health pulse, risk integration, serialization, and 3 end-to-end scenarios (Elite/degrading/recovering teams).
+
 ### Added — Risk Inference Engine (ADR-022, PEC Blueprint Ch. 1-2)
 - `src/core/risk/__init__.py` — New package implementing the PEC Blueprint's Bayesian Risk Inference Engine. Calculates P(Failure|Context) before agent execution using 13 normalized signals, sigmoid activation, and SHAP-like explanations.
 - `src/core/risk/risk_config.py` — Knowledge artifact defining thresholds (τ_warn=0.08, τ_escalate=0.15, τ_block=0.40), signal weights, and Recursive Optimizer parameters (learning rate, weight decay, clamping).
