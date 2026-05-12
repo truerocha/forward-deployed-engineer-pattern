@@ -27,7 +27,7 @@ class ProjectConfig:
     display_name: str = ""
     default_branch: str = "main"
     tech_stack: list[str] = field(default_factory=list)
-    max_concurrent_tasks: int = 2
+    max_concurrent_tasks: int = 3
     priority_boost: int = 0  # Reserved: future scheduling algorithm (lower = higher priority)
     steering_context: str = ""  # Additional steering injected into agent prompts
     labels: dict[str, str] = field(default_factory=dict)  # Metadata labels

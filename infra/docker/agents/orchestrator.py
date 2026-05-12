@@ -192,22 +192,25 @@ class Orchestrator:
                 )
 
             project_config = get_registry().get_project(repo)
+            # Concurrency limit: env var (infrastructure-driven) > project config > default 3
+            infra_max = int(os.environ.get("MAX_CONCURRENT_TASKS", "0"))
+            effective_max = infra_max if infra_max > 0 else project_config.max_concurrent_tasks
             can_proceed, active_count = task_queue.check_concurrency(
-                repo, project_config.max_concurrent_tasks,
+                repo, effective_max,
             )
             if not can_proceed:
                 task_queue.append_task_event(
                     task_id, "gate",
-                    f"Concurrency guard: {active_count}/{project_config.max_concurrent_tasks} slots used — queued",
+                    f"Concurrency guard: {active_count}/{effective_max} slots used — queued",
                     gate_name="concurrency",
                     gate_result="fail",
-                    criteria=f"max_concurrent={project_config.max_concurrent_tasks} for repo={repo}",
+                    criteria=f"max_concurrent={effective_max} for repo={repo} (source={'infra' if infra_max > 0 else 'project_config'})",
                     context=f"Active tasks: {active_count}. Task queued until a slot opens.",
                 )
                 task_queue.update_task_stage(task_id, "ingested")
                 return {
                     "status": "queued",
-                    "reason": f"Concurrency limit reached for {repo} ({active_count}/{project_config.max_concurrent_tasks})",
+                    "reason": f"Concurrency limit reached for {repo} ({active_count}/{effective_max})",
                     "task_id": task_id,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
