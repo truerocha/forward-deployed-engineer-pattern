@@ -88,13 +88,20 @@ def update_task_stage(task_id: str, stage: str, **kwargs) -> None:
     Called by the orchestrator at each pipeline milestone so the dashboard
     shows real-time stage progression.
 
+    Also sets `started_at` (idempotent, first-write-wins) to ensure DORA
+    lead time is measured from actual execution start, not webhook arrival.
+    Uses if_not_exists so only the first call sets it — subsequent calls
+    are no-ops for started_at while still updating the stage.
+
     Args:
         task_id: The task to update.
         stage: The new stage name (e.g., 'workspace', 'reconnaissance', 'engineering').
         **kwargs: Additional fields to update (e.g., pr_url, workspace_error).
     """
     table = _get_table()
-    update_expr = "SET current_stage = :stage, updated_at = :now"
+    # started_at uses if_not_exists — idempotent, first-write-wins
+    # This ensures DORA metrics use execution start, not webhook arrival
+    update_expr = "SET current_stage = :stage, updated_at = :now, started_at = if_not_exists(started_at, :now)"
     expr_values = {":stage": stage, ":now": _now()}
 
     # Allow passing additional fields (pr_url, workspace_error, etc.)
@@ -108,7 +115,7 @@ def update_task_stage(task_id: str, stage: str, **kwargs) -> None:
             UpdateExpression=update_expr,
             ExpressionAttributeValues=expr_values,
         )
-        logger.info("Task %s → stage: %s", task_id, stage)
+        logger.info("Task %s \u2192 stage: %s", task_id, stage)
     except Exception as e:
         # Non-blocking — don't fail the pipeline for a dashboard update
         logger.warning("Failed to update stage for %s: %s", task_id, e)
