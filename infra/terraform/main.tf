@@ -425,6 +425,8 @@ resource "aws_ecs_task_definition" "strands_agent" {
         { name = "SQUAD_MODE", value = "dynamic" },
         { name = "FDE_AGENT_NAME", value = "FDE Squad Leader" },
         { name = "FDE_AGENT_EMAIL", value = "fde-squad@factory.local" },
+        # Concurrency: infrastructure-driven limit (not hardcoded in code)
+        { name = "MAX_CONCURRENT_TASKS", value = tostring(var.max_concurrent_tasks) },
       ]
 
       secrets = [

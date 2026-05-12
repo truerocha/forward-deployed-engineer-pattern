@@ -68,6 +68,16 @@ variable "agent_desired_count" {
   default     = 1
 }
 
+variable "max_concurrent_tasks" {
+  description = "Maximum concurrent tasks per repo (infrastructure-driven concurrency limit). Injected as env var into agent containers."
+  type        = number
+  default     = 3
+  validation {
+    condition     = var.max_concurrent_tasks >= 1 && var.max_concurrent_tasks <= 10
+    error_message = "max_concurrent_tasks must be between 1 and 10 (safety cap)."
+  }
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the factory VPC"
   type        = string
