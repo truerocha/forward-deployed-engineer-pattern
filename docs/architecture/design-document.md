@@ -102,6 +102,7 @@ See `docs/architecture/reference-architecture.png` for the full AWS reference ar
 | Branch Evaluation CLI | `scripts/evaluate_branch.py` | CLI entrypoint for local and CI evaluation (exit 0/1) |
 | Branch Evaluation Workflow | `.github/workflows/evaluate-branch.yml` | GitHub Action: PR trigger → evaluate → comment → check status → auto-merge |
 | Branch Evaluation Hook | `.kiro/hooks/fde-branch-eval.kiro.hook` | Local userTriggered evaluation via Kiro agent |
+| Risk Inference Engine | `src/core/risk/` (3 modules) | Bayesian P(Failure\|Context) scoring: 13 signals → sigmoid → classification (pass/warn/escalate/block) with SHAP-like explanations and self-improving weights |
 | IAM Validator | `scripts/validate-aws-iam.py` | Per-service AWS IAM permission checks |
 | Provision Script | `scripts/provision-workspace.sh` | Legacy manual onboarding (--global / --project) |
 
@@ -142,6 +143,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 - ADR-016: Ephemeral Catalog and Data Residency for Regulated Environments
 - ADR-017: React Portal for Factory Observability UX
 - ADR-018: Branch Evaluation Agent — Automated Quality Gate for Merge Readiness
+- ADR-022: Risk Inference Engine — Bayesian P(Failure|Context) Predictive Scoring
 
 ## Testing Design
 
@@ -163,6 +165,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 | Scope Boundaries | `python3 -m pytest tests/test_scope_boundaries.py` | Out-of-scope rejection, confidence levels |
 | Language Lint | `python3 scripts/lint_language.py` | Violent, trauma, weasel word detection |
 | Full Suite | `python3 -m pytest tests/ -v` | All 171 tests across 15 test files |
+| Risk Inference Engine | `python3 -m pytest tests/test_risk_inference_engine.py` | 33 tests: signal extraction, inference, thresholds, XAI, optimizer, scenarios |
 
 ## Open Questions
 
@@ -170,6 +173,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 2. ~~When to introduce Strands SDK for parallel agent orchestration~~ — **Resolved**: Strands SDK deployed in `infra/docker/agents/` (2026-05-05). Agent registry, builder, and orchestrator use Strands Agent instances.
 3. How to measure ROI of the factory compared to traditional development
 4. When to promote `fde-doc-gardening` from `userTriggered` to `postTaskExecution` (COE-012 recurrence suggests now)
+5. ~~When to add predictive risk scoring before agent execution~~ — **Resolved**: Risk Inference Engine deployed at `src/core/risk/` (2026-05-12). Bayesian P(Failure|Context) with 13 signals, sigmoid activation, SHAP-like explanations, and self-improving weights via gradient descent. See ADR-022.
 
 ## References
 

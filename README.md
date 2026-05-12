@@ -5,11 +5,12 @@
 > From reactive code writer to autonomous engineering partner.
 > The Staff Engineer writes specs. The factory ships code.
 
-[![Tests](https://img.shields.io/badge/tests-184%20collected-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-217%20collected-brightgreen)]()
 [![Hooks](https://img.shields.io/badge/hooks-18%20(4%20V2%20%2B%2014%20V3)-blue)]()
 [![Autonomy Level](https://img.shields.io/badge/level-L4%20Autonomous%20Factory-purple)]()
-[![ADRs](https://img.shields.io/badge/ADRs-21-blue)]()
+[![ADRs](https://img.shields.io/badge/ADRs-22-blue)]()
 [![Execution](https://img.shields.io/badge/execution-distributed%20ready-purple)]()
+[![Risk Engine](https://img.shields.io/badge/risk-Bayesian%20P(F%7CC)%20scoring-orange)]()
 
 ---
 
@@ -78,6 +79,23 @@ The factory now supports **distributed execution** where each agent runs as an i
 |------|-------------|----------|
 | Monolith | All agents in one container (current default) | N/A |
 | Distributed | Each agent = own ECS task, parallel stages | `terraform apply` (<30s) |
+
+### Risk Inference Engine (New — PEC Blueprint)
+
+The factory now includes a **Bayesian Risk Inference Engine** (ADR-022) that calculates `P(Failure|Context)` before agent execution begins. This implements the PEC Blueprint's mathematical core:
+
+```
+Data Contract → Contextual Encoder (13 signals) → σ(Σ wᵢ · xᵢ) → Classification → XAI Explanation
+```
+
+| Classification | Threshold | Action |
+|---|---|---|
+| Pass | risk < 0.08 | Proceed normally |
+| Warn | 0.08 ≤ risk < 0.15 | Emit warning to portal |
+| Escalate | 0.15 ≤ risk < 0.40 | Tighten autonomy gates |
+| Block | risk ≥ 0.40 | Eject to Staff Engineer with Safety Prescription |
+
+The engine self-improves via **gradient descent** on prediction errors — when a task outcome differs from the predicted risk, weights are adjusted automatically (Recursive Optimizer pattern from PEC Blueprint Ch. 1).
 
 Each workspace is a **production line** for a specific codebase. The Staff Engineer manages multiple lines simultaneously, routing work and approving outcomes.
 

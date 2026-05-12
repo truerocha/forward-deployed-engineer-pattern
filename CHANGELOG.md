@@ -6,7 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
-## [Unreleased] — 2026-05-11
+## [Unreleased] — 2026-05-12
+
+### Added — Risk Inference Engine (ADR-022, PEC Blueprint Ch. 1-2)
+- `src/core/risk/__init__.py` — New package implementing the PEC Blueprint's Bayesian Risk Inference Engine. Calculates P(Failure|Context) before agent execution using 13 normalized signals, sigmoid activation, and SHAP-like explanations.
+- `src/core/risk/risk_config.py` — Knowledge artifact defining thresholds (τ_warn=0.08, τ_escalate=0.15, τ_block=0.40), signal weights, and Recursive Optimizer parameters (learning rate, weight decay, clamping).
+- `src/core/risk/risk_signals.py` — Contextual Encoder extracting 13 risk signals from data contract, DORA metrics, failure history, and onboarding catalog. Signals span historical (CFR, recurrence, hotspots), complexity (files, cyclomatic, dependencies, cross-module), DORA trends (lead time, deploy frequency), organism level, and protective factors (test coverage, prior success, catalog confidence).
+- `src/core/risk/inference_engine.py` — Core engine: weighted sum → sigmoid → classification → XAI explanation. Includes Recursive Optimizer (gradient descent on prediction errors) for self-improving weights after task outcomes.
+- `tests/test_risk_inference_engine.py` — 33 tests covering signal extraction, inference scoring, threshold classification, explanation generation, recursive optimizer, serialization, and 3 end-to-end PEC Blueprint scenarios.
+- `docs/adr/ADR-022-risk-inference-engine.md` — Architecture decision record documenting the Bayesian risk scoring approach, signal taxonomy, threshold calibration, and Well-Architected alignment.
+
+### Changed — Design Document Updates for Risk Engine
+- `docs/architecture/design-document.md` — Added Risk Inference Engine to Components table, Testing Design table, ADR references, and resolved Open Question #5.
+
+---
+
+## [Previous] — 2026-05-11
 
 ### Added — Conductor Orchestration Pattern (ADR-020)
 - `src/core/orchestration/conductor.py` — New Conductor engine implementing the RL Conductor pattern (Nielsen et al., ICLR 2026, arXiv:2512.04388v5). Generates dynamic WorkflowPlans with focused subtask instructions, communication topologies (access lists), task-difficulty adaptivity via organism ladder, and bounded recursive self-referential scaling (max depth 2).
