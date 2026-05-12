@@ -55,6 +55,62 @@ resource "aws_dynamodb_table" "task_queue" {
   tags = { Component = "task-queue" }
 }
 
+# ─── Task Queue: Concurrency Config Items (seeded by Terraform) ──
+# These CONFIG# items are read by the orchestrator at runtime via
+# resolve_max_concurrent(). Changing them here and running terraform apply
+# hot-tunes the system without Docker image redeploy.
+
+resource "aws_dynamodb_table_item" "config_max_concurrent" {
+  table_name = aws_dynamodb_table.task_queue.name
+  hash_key   = aws_dynamodb_table.task_queue.hash_key
+
+  item = jsonencode({
+    task_id     = { S = "CONFIG#max_concurrent_tasks" }
+    value       = { S = tostring(var.max_concurrent_tasks) }
+    description = { S = "Max concurrent tasks per repo (managed by Terraform)" }
+    status      = { S = "CONFIG" }
+    updated_at  = { S = "2026-05-12T00:00:00Z" }
+  })
+
+  lifecycle {
+    ignore_changes = [item]  # Don't overwrite if operator hot-tuned at runtime
+  }
+}
+
+resource "aws_dynamodb_table_item" "config_budget_exceeded" {
+  table_name = aws_dynamodb_table.task_queue.name
+  hash_key   = aws_dynamodb_table.task_queue.hash_key
+
+  item = jsonencode({
+    task_id     = { S = "CONFIG#budget_exceeded" }
+    value       = { S = "false" }
+    description = { S = "Budget throttle flag. Set to 'true' to reduce concurrency to 1. Managed by cost-tracking automation." }
+    status      = { S = "CONFIG" }
+    updated_at  = { S = "2026-05-12T00:00:00Z" }
+  })
+
+  lifecycle {
+    ignore_changes = [item]  # Don't overwrite — cost Lambda manages this
+  }
+}
+
+resource "aws_dynamodb_table_item" "config_daily_budget_usd" {
+  table_name = aws_dynamodb_table.task_queue.name
+  hash_key   = aws_dynamodb_table.task_queue.hash_key
+
+  item = jsonencode({
+    task_id     = { S = "CONFIG#daily_budget_usd" }
+    value       = { S = "5.00" }
+    description = { S = "Daily cost budget in USD. When exceeded, budget_exceeded flag is set to true." }
+    status      = { S = "CONFIG" }
+    updated_at  = { S = "2026-05-12T00:00:00Z" }
+  })
+
+  lifecycle {
+    ignore_changes = [item]  # Operator can adjust without redeploy
+  }
+}
+
 resource "aws_dynamodb_table" "agent_lifecycle" {
   name         = "${local.name_prefix}-agent-lifecycle"
   billing_mode = "PAY_PER_REQUEST"
