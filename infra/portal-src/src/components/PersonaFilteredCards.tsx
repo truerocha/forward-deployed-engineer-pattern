@@ -26,6 +26,7 @@ import { BranchEvaluationCard } from './BranchEvaluationCard';
 import { ConductorPlanCard } from './ConductorPlanCard';
 import { DoraSunCard } from './DoraSunCard';
 import { ReviewFeedbackCard } from './ReviewFeedbackCard';
+import { CognitiveAutonomyCard } from './CognitiveAutonomyCard';
 import {
   mapDoraMetrics,
   mapCostMetrics,
@@ -36,11 +37,11 @@ import {
 
 /** Persona card visibility matrix — single source of truth for role-based filtering. */
 const PERSONA_CARDS: Record<string, string[]> = {
-  PM: ['DoraSunCard', 'ValueStreamCard', 'DoraCard', 'CostCard', 'TrustCard', 'NetFrictionCard', 'ReviewFeedbackCard'],
-  SWE: ['LiveTimeline', 'GateFeedbackCard', 'SquadExecutionCard', 'BranchEvaluationCard', 'HumanInputCard', 'ConductorPlanCard', 'ReviewFeedbackCard'],
-  SRE: ['DoraSunCard', 'DataQualityCard', 'GateHistoryCard', 'DoraCard', 'CostCard', 'ReviewFeedbackCard'],
+  PM: ['DoraSunCard', 'ValueStreamCard', 'DoraCard', 'CostCard', 'TrustCard', 'NetFrictionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
+  SWE: ['LiveTimeline', 'GateFeedbackCard', 'SquadExecutionCard', 'BranchEvaluationCard', 'HumanInputCard', 'ConductorPlanCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
+  SRE: ['DoraSunCard', 'DataQualityCard', 'GateHistoryCard', 'DoraCard', 'CostCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
   Architect: ['MaturityRadar', 'BrainSimCard', 'ConductorPlanCard', 'ValueStreamCard', 'DataQualityCard', 'NetFrictionCard'],
-  Staff: ['DoraSunCard', 'DoraCard', 'MaturityRadar', 'TrustCard', 'CostCard', 'BrainSimCard', 'ValueStreamCard', 'SquadExecutionCard', 'ReviewFeedbackCard'],
+  Staff: ['DoraSunCard', 'DoraCard', 'MaturityRadar', 'TrustCard', 'CostCard', 'BrainSimCard', 'ValueStreamCard', 'SquadExecutionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
 };
 
 interface PersonaFilteredCardsProps {
@@ -72,6 +73,7 @@ export const PersonaFilteredCards: React.FC<PersonaFilteredCardsProps> = ({
     BranchEvaluationCard: <BranchEvaluationCard />,
     ConductorPlanCard: <ConductorPlanCard />,
     ReviewFeedbackCard: <ReviewFeedbackCard />,
+    CognitiveAutonomyCard: <CognitiveAutonomyCard />,
   };
 
   return (
