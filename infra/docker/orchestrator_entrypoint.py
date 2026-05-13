@@ -112,22 +112,93 @@ def main() -> None:
         logger.warning("Task rejected by scope: %s", scope_result.rejection_reason)
         sys.exit(0)
 
-    # Autonomy level
-    autonomy_result = compute_autonomy_level(data_contract)
+    # Cognitive Autonomy (ADR-029): Decoupled Capability + Authority
+    from src.core.orchestration.cognitive_autonomy import compute_cognitive_autonomy
+
+    _risk_score = 0.0
+    _synapse_signals = {}
+    _icrl_failure_count = 0
+    _cfr_current = 0.0
+    _trust_score = 50.0
+    _consecutive_successes = 0
+    _repo = data_contract.get("repo", "")
+
+    try:
+        from src.core.risk.inference_engine import RiskInferenceEngine
+        risk_engine = RiskInferenceEngine()
+        if risk_engine.enabled:
+            risk_assessment = risk_engine.assess(data_contract, task_id=task_id)
+            _risk_score = risk_assessment.risk_score
+            logger.info("Risk Engine: score=%.3f classification=%s", _risk_score, risk_assessment.classification)
+    except Exception as e:
+        logger.warning("Risk Engine unavailable: %s", str(e)[:100])
+
+    try:
+        from src.core.memory.icrl_episode_store import ICRLEpisodeStore
+        episode_store = ICRLEpisodeStore(
+            project_id=os.environ.get("PROJECT_ID", "global"),
+            metrics_table=os.environ.get("METRICS_TABLE", ""),
+        )
+        _icrl_failure_count = episode_store.get_episode_count(_repo)
+    except Exception:
+        pass
+
+    try:
+        from src.core.metrics.dora_metrics import DoraMetrics
+        dora = DoraMetrics(project_id=os.environ.get("PROJECT_ID", "global"),
+                          metrics_table=os.environ.get("METRICS_TABLE", ""))
+        _cfr_current = dora.get_cfr(4, window_days=7) / 100.0
+    except Exception:
+        pass
+
+    try:
+        from src.core.metrics.trust_metrics import TrustMetrics
+        trust = TrustMetrics(project_id=os.environ.get("PROJECT_ID", "global"),
+                            metrics_table=os.environ.get("METRICS_TABLE", ""))
+        _trust_score = trust.get_snapshot(window_days=30).trust_score_composite
+    except Exception:
+        pass
+
+    _dependency_count = len(data_contract.get("depends_on", []))
+    _blocking_count = len(data_contract.get("blocks", []))
+
+    cognitive_decision = compute_cognitive_autonomy(
+        risk_score=_risk_score,
+        synapse_signals=_synapse_signals,
+        dependency_count=_dependency_count,
+        blocking_count=_blocking_count,
+        icrl_failure_count=_icrl_failure_count,
+        cfr_current=_cfr_current,
+        trust_score=_trust_score,
+        consecutive_successes=_consecutive_successes,
+    )
+
+    class _LegacyAutonomy:
+        def __init__(self, level_int):
+            self.level = f"L{level_int}"
+    autonomy_result = _LegacyAutonomy(cognitive_decision.legacy_autonomy_level)
     organism_level = _infer_organism_level(data_contract)
 
+    if cognitive_decision.capability.depth >= 0.7:
+        organism_level = "O4"
+    elif cognitive_decision.capability.depth >= 0.5 and organism_level < "O3":
+        organism_level = "O3"
+
     logger.info(
-        "Task %s: autonomy=%s, organism=%s, confidence=%s",
-        task_id, autonomy_result.level, organism_level, scope_result.confidence_level,
+        "Task %s: depth=%.2f squad=%d authority=%s legacy=%s organism=%s",
+        task_id, cognitive_decision.capability.depth,
+        cognitive_decision.capability.squad_size,
+        cognitive_decision.authority.authority_level,
+        autonomy_result.level, organism_level,
     )
 
     # Update task queue
     task_queue.update_task_stage(task_id, "orchestrating")
     task_queue.append_task_event(
         task_id, "reasoning",
-        "Distributed orchestrator activated",
+        "Distributed orchestrator activated (Cognitive Autonomy ADR-029)",
         phase="intake",
-        criteria=f"Autonomy: {autonomy_result.level} | Organism: {organism_level}",
+        criteria=f"Depth: {cognitive_decision.capability.depth:.2f} | Squad: {cognitive_decision.capability.squad_size} | Authority: {cognitive_decision.authority.authority_level}",
         context="Using Conductor pattern for dynamic workflow generation. "
                 "Each agent runs as an independent ECS task with isolated resources.",
     )
