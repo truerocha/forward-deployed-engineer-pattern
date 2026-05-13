@@ -7,7 +7,7 @@ An enterprise-grade pattern for AI-driven software development where **AI agents
 [![Autonomy](https://img.shields.io/badge/autonomy-L4%20Factory-7c3aed)]()
 [![DORA](https://img.shields.io/badge/DORA-Elite%20target-059669)]()
 [![Tests](https://img.shields.io/badge/tests-217%20passing-22c55e)]()
-[![ADRs](https://img.shields.io/badge/decisions-22%20ADRs-3b82f6)]()
+[![ADRs](https://img.shields.io/badge/decisions-24%20ADRs-3b82f6)]()
 
 ---
 
@@ -51,17 +51,21 @@ Not general-purpose assistants. AI agents deployed into **your project's specifi
 
 ### 2. Predictive Risk Scoring
 
-Before any agent executes, a **Bayesian Risk Engine** calculates `P(Failure|Context)` using 13 signals (code complexity, DORA metrics, failure history). High-risk tasks are blocked or escalated automatically. The engine self-improves via gradient descent on outcomes.
+Before any agent executes, a **Bayesian Risk Engine** calculates `P(Failure|Context)` using 16 signals (code complexity, DORA metrics, failure history, design quality). High-risk tasks are blocked or escalated automatically. The engine self-improves via gradient descent on outcomes.
 
-### 3. Dynamic Agent Squads
+### 3. SWE Synapses — Design Intelligence
+
+Five cognitive design principles (grounded in peer-reviewed research) fire before the Conductor generates a plan. They determine whether to plan or explore (Ralph 2013), whether decomposition is cost-justified (Homay 2025), whether agent responsibilities are deep enough (Ousterhout), whether the architectural bundle is coherent (Wei 2026), and what the system actually knows about the domain (King & Kimble 2004). The result: prescriptive guidance instead of reactive gating.
+
+### 4. Dynamic Agent Squads
 
 A **Conductor** (inspired by Nielsen et al., ICLR 2026) composes specialized agent teams per task — security reviewers, architects, developers, adversarial testers — matched to complexity. Simple bugfixes get 3 agents. Complex features get 8.
 
-### 4. Distributed Execution
+### 5. Distributed Execution
 
 Each agent runs as an independent ECS task with its own resources, logs, and retry policy. Parallel stages. Agent-level failure isolation. Instant rollback between monolith and distributed modes.
 
-### 5. Automated Quality Gates
+### 6. Automated Quality Gates
 
 18 hooks enforce quality at every step: test immutability, adversarial challenges, circuit breakers, pipeline validation, ship-readiness checks. No code ships without passing the full gate chain.
 

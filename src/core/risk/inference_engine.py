@@ -354,6 +354,9 @@ class RiskInferenceEngine:
             "test_coverage": "w_test_coverage",
             "prior_success": "w_prior_success",
             "catalog_confidence": "w_catalog_confidence",
+            "interface_depth_ratio": "w_interface_depth_ratio",
+            "decomposition_cost_ratio": "w_decomposition_cost_ratio",
+            "paradigm_fit_score": "w_paradigm_fit_score",
         }
 
         contributions = []

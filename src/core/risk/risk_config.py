@@ -100,6 +100,11 @@ class SignalWeights:
     w_prior_success: float = -2.0          # Same task type succeeded before
     w_catalog_confidence: float = -1.0     # High onboarding catalog confidence
 
+    # SWE Synapse signals (fde-design-swe-sinapses.md Section 8.2)
+    w_interface_depth_ratio: float = -1.2  # Synapse 1: deep modules reduce risk (protective)
+    w_decomposition_cost_ratio: float = 1.0  # Synapse 4: high cost ratio increases risk
+    w_paradigm_fit_score: float = -0.8     # Synapse 3: good paradigm fit reduces risk (protective)
+
     def to_dict(self) -> dict[str, float]:
         """Serialize weights for persistence and observability."""
         return {
@@ -116,6 +121,9 @@ class SignalWeights:
             "w_test_coverage": self.w_test_coverage,
             "w_prior_success": self.w_prior_success,
             "w_catalog_confidence": self.w_catalog_confidence,
+            "w_interface_depth_ratio": self.w_interface_depth_ratio,
+            "w_decomposition_cost_ratio": self.w_decomposition_cost_ratio,
+            "w_paradigm_fit_score": self.w_paradigm_fit_score,
         }
 
     @classmethod

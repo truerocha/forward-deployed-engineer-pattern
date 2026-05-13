@@ -38,11 +38,12 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger(__name__)
 
 _DIMENSION_WEIGHTS = {
-    "spec_adherence": 0.30,
-    "reasoning_quality": 0.20,
-    "context_utilization": 0.15,
-    "governance_compliance": 0.20,
-    "user_value_delivery": 0.15,
+    "spec_adherence": 0.25,
+    "reasoning_quality": 0.15,
+    "context_utilization": 0.10,
+    "governance_compliance": 0.15,
+    "user_value_delivery": 0.10,
+    "design_quality": 0.25,
 }
 
 _FIDELITY_TARGET = 0.7
@@ -114,6 +115,7 @@ class FidelityScorer:
         context_available: dict[str, Any],
         context_used: dict[str, Any],
         user_value_statement: str,
+        synapse_assessment: dict[str, Any] | None = None,
     ) -> FidelityResult:
         """Compute fidelity score for a completed task."""
         dimensions: dict[str, DimensionScore] = {}
@@ -123,6 +125,7 @@ class FidelityScorer:
         dimensions["context_utilization"] = self._score_context_utilization(context_available, context_used)
         dimensions["governance_compliance"] = self._score_governance_compliance(gate_results)
         dimensions["user_value_delivery"] = self._score_user_value_delivery(user_value_statement, execution_output)
+        dimensions["design_quality"] = self._score_design_quality(synapse_assessment)
 
         composite = sum(d.weighted_score for d in dimensions.values())
 
@@ -134,6 +137,7 @@ class FidelityScorer:
                 "gates_total": len(gate_results),
                 "context_items_available": sum(len(v) if isinstance(v, list) else 1 for v in context_available.values()),
                 "context_items_used": sum(len(v) if isinstance(v, list) else 1 for v in context_used.values()),
+                "synapse_assessment_provided": synapse_assessment is not None,
             },
         )
 
@@ -285,6 +289,66 @@ class FidelityScorer:
                 evidence.append("Value proposition addressed")
 
         return DimensionScore(dimension="user_value_delivery", score=round(max(0.0, min(1.0, score)), 3), weight=_DIMENSION_WEIGHTS["user_value_delivery"], evidence=evidence, deductions=deductions)
+
+    def _score_design_quality(self, synapse_assessment: dict[str, Any] | None) -> DimensionScore:
+        """Score design quality based on SWE Synapse assessment.
+
+        Measures whether the execution applied sound design principles:
+          - Were modules kept deep? (Synapse 1)
+          - Was the architectural bundle coherent? (Synapse 2)
+          - Was the correct paradigm applied? (Synapse 3)
+          - Was decomposition cost-justified? (Synapse 4)
+          - Were epistemic assumptions made explicit? (Synapse 5)
+
+        When no synapse assessment is available (backward compatibility),
+        returns a neutral score of 0.5.
+        """
+        if not synapse_assessment:
+            return DimensionScore(
+                dimension="design_quality",
+                score=0.5,
+                weight=_DIMENSION_WEIGHTS["design_quality"],
+                evidence=["No synapse assessment available (pre-synapse execution)"],
+            )
+
+        design_score = synapse_assessment.get("design_quality_score", 0.5)
+        evidence: list[str] = []
+        deductions: list[str] = []
+
+        # Extract individual synapse contributions
+        risk_signals = synapse_assessment.get("risk_signals", {})
+        depth = risk_signals.get("interface_depth_ratio", 0.5)
+        cost = risk_signals.get("decomposition_cost_ratio", 0.0)
+        paradigm = risk_signals.get("paradigm_fit_score", 0.5)
+
+        if depth >= 0.7:
+            evidence.append(f"Deep modules (depth={depth:.2f})")
+        elif depth < 0.3:
+            deductions.append(f"Shallow modules (depth={depth:.2f})")
+
+        if cost <= 0.3:
+            evidence.append("Decomposition is cost-justified")
+        elif cost > 0.7:
+            deductions.append(f"Over-decomposition detected (cost_signal={cost:.2f})")
+
+        if paradigm >= 0.7:
+            evidence.append(f"Good paradigm fit (score={paradigm:.2f})")
+        elif paradigm < 0.4:
+            deductions.append(f"Paradigm mismatch (score={paradigm:.2f})")
+
+        coherence = synapse_assessment.get("coherence", {})
+        if coherence.get("is_coherent", True):
+            evidence.append("Bundle coherence maintained")
+        else:
+            deductions.append("Bundle coherence violated")
+
+        return DimensionScore(
+            dimension="design_quality",
+            score=round(min(1.0, max(0.0, design_score)), 3),
+            weight=_DIMENSION_WEIGHTS["design_quality"],
+            evidence=evidence,
+            deductions=deductions,
+        )
 
     def _persist_result(self, result: FidelityResult) -> None:
         """Persist fidelity result to metrics table."""

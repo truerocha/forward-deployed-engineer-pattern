@@ -3,10 +3,11 @@ Conductor Integration — Bridges Conductor Plans with DistributedOrchestrator.
 
 This module provides the integration layer that:
   1. Decides whether to use the Conductor (feature flag + organism level)
-  2. Converts Conductor WorkflowPlans into canonical SquadManifests
-  3. Enriches SCD with access list metadata for topology enforcement
-  4. Injects focused subtask instructions into agent environment
-  5. Handles recursive refinement loop after execution
+  2. Runs the SWE Synapse Engine for pre-execution design intelligence
+  3. Converts Conductor WorkflowPlans into canonical SquadManifests
+  4. Enriches SCD with access list metadata for topology enforcement
+  5. Injects focused subtask instructions into agent environment
+  6. Handles recursive refinement loop after execution
 
 The integration preserves backward compatibility: when CONDUCTOR_ENABLED is
 False or organism level is below threshold, the existing static manifest
@@ -16,7 +17,7 @@ Feature flag: CONDUCTOR_ENABLED (env var, default: "true")
 Activation threshold: O3+ (organism levels O3, O4, O5 use Conductor)
 
 Ref: ADR-020 (Conductor Orchestration Pattern)
-Ref: docs/design/conductor-orchestration-pattern.md
+Ref: fde-design-swe-sinapses.md Section 8.3 (Conductor Enhancement)
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ from src.core.orchestration.distributed_orchestrator import (
     StageResult,
     StageStatus,
 )
+from src.core.synapses.synapse_engine import SynapseEngine, SynapseAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +90,23 @@ def generate_conductor_manifest(
     autonomy_level: int,
     knowledge_context: dict[str, Any] | None = None,
     learning_mode: bool = False,
+    data_contract: dict[str, Any] | None = None,
+    catalog_metadata: dict[str, Any] | None = None,
+    prior_success_rate: float = 0.5,
+    failure_recurrence: float = 0.0,
 ) -> SquadManifest:
     """Generate a SquadManifest using the Conductor's workflow plan.
 
     This is the primary entry point for Conductor-driven execution.
-    It generates a WorkflowPlan and converts it to a SquadManifest
-    compatible with the existing DistributedOrchestrator.
+    It runs the SWE Synapse Engine first to determine design intelligence,
+    then passes synapse guidance to the Conductor for plan generation.
+
+    The synapse chain (Section 8.1 of fde-design-swe-sinapses.md):
+      1. Epistemic: What do we KNOW about this domain?
+      2. Paradigm: Should we plan or explore?
+      3. Cost: Should we decompose or keep monolithic?
+      4. Harness: Which architectural bundle fits?
+      5. Depth: Are agent responsibilities deep enough?
 
     Args:
         task_id: Unique task identifier.
@@ -104,19 +117,74 @@ def generate_conductor_manifest(
         autonomy_level: L1-L5 autonomy level.
         knowledge_context: Relevant knowledge for the task.
         learning_mode: Whether fidelity agent explains reasoning.
+        data_contract: Canonical task data contract (for synapse assessment).
+        catalog_metadata: Onboarding catalog data (for synapse assessment).
+        prior_success_rate: Rate of success for similar tasks [0, 1].
+        failure_recurrence: Rate of recurring failures [0, 1].
 
     Returns:
         SquadManifest ready for DistributedOrchestrator.execute().
     """
+    # --- SWE Synapse Engine: Pre-Execution Design Intelligence ---
+    synapse_engine = SynapseEngine()
+    synapse_assessment = synapse_engine.assess(
+        organism_level=organism_level,
+        data_contract=data_contract,
+        catalog_metadata=catalog_metadata,
+        proposed_agents=_estimate_initial_agents(organism_level),
+        prior_success_rate=prior_success_rate,
+        failure_recurrence=failure_recurrence,
+    )
+
+    # Apply synapse recommendations to Conductor inputs
+    recommended_agents = synapse_assessment.recommended_agents
+    conductor_guidance = synapse_assessment.conductor_guidance
+
+    # Enrich knowledge context with synapse guidance for the Conductor
+    enriched_context = dict(knowledge_context or {})
+    enriched_context["_synapse_guidance"] = conductor_guidance
+    enriched_context["_synapse_paradigm"] = synapse_assessment.paradigm.paradigm.value
+    enriched_context["_synapse_recommended_agents"] = recommended_agents
+
+    # --- Conductor: Generate WorkflowPlan ---
     conductor = Conductor()
 
     plan = conductor.generate_plan(
         task_id=task_id,
         task_description=task_description,
         organism_level=organism_level,
-        knowledge_context=knowledge_context,
+        knowledge_context=enriched_context,
         user_value_statement=user_value_statement,
     )
+
+    # --- Post-Plan Synapse Validation ---
+    # Re-assess with actual plan steps for depth and coherence validation
+    post_plan_assessment = synapse_engine.assess(
+        organism_level=organism_level,
+        data_contract=data_contract,
+        catalog_metadata=catalog_metadata,
+        proposed_agents=plan.total_steps(),
+        proposed_topology=plan.topology_type.value,
+        proposed_steps=[
+            {"subtask": s.subtask, "agent_role": s.agent_role, "step_index": s.step_index}
+            for s in plan.steps
+        ],
+        scd_access_map={
+            s.agent_role: [str(i) for i in s.visible_steps(plan.total_steps())]
+            for s in plan.steps
+        },
+        prior_success_rate=prior_success_rate,
+        failure_recurrence=failure_recurrence,
+    )
+
+    # If post-plan assessment recommends consolidation, log warning
+    if post_plan_assessment.decomposition.recommendation == "consolidate":
+        logger.warning(
+            "Synapse recommends consolidation: task=%s proposed=%d recommended=%d reason=%s",
+            task_id, plan.total_steps(),
+            post_plan_assessment.recommended_agents,
+            post_plan_assessment.decomposition.reasoning,
+        )
 
     manifest = _convert_plan_to_manifest(
         plan=plan,
@@ -126,7 +194,7 @@ def generate_conductor_manifest(
         learning_mode=learning_mode,
     )
 
-    # Store the plan in manifest metadata for observability and recursion
+    # Store plan + synapse metadata for observability and recursion
     manifest.knowledge_context["_conductor_plan"] = {
         "topology": plan.topology_type.value,
         "steps": len(plan.steps),
@@ -135,16 +203,38 @@ def generate_conductor_manifest(
         "confidence_threshold": plan.confidence_threshold,
         "estimated_tokens": plan.estimated_tokens,
     }
+    manifest.knowledge_context["_synapse_assessment"] = {
+        "paradigm": post_plan_assessment.paradigm.paradigm.value,
+        "paradigm_confidence": post_plan_assessment.paradigm.confidence,
+        "design_quality_score": post_plan_assessment.design_quality_score,
+        "risk_signals": post_plan_assessment.risk_signals(),
+        "recommended_agents": post_plan_assessment.recommended_agents,
+        "coherent": post_plan_assessment.coherence.is_coherent,
+        "epistemic_approach": post_plan_assessment.epistemic.recommended_approach,
+    }
 
     logger.info(
-        "Conductor manifest generated: task=%s topology=%s stages=%d agents=%d",
+        "Conductor manifest generated: task=%s topology=%s stages=%d agents=%d "
+        "synapse_paradigm=%s design_quality=%.2f",
         task_id,
         plan.topology_type.value,
         manifest.stage_count(),
         manifest.total_agents(),
+        post_plan_assessment.paradigm.paradigm.value,
+        post_plan_assessment.design_quality_score,
     )
 
     return manifest
+
+
+def _estimate_initial_agents(organism_level: str) -> int:
+    """Estimate initial agent count before Conductor generates plan.
+
+    Used by the SynapseEngine for pre-plan decomposition cost assessment.
+    Based on organism-level defaults from ADR-019.
+    """
+    defaults = {"O1": 2, "O2": 3, "O3": 4, "O4": 5, "O5": 6}
+    return defaults.get(organism_level, 4)
 
 
 def execute_with_conductor(

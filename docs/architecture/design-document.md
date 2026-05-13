@@ -1,8 +1,8 @@
 # Design Document: Autonomous Code Factory
 
 > Forward Deployed Engineer — GenAI powered by Kiro
-> Version: 3.1
-> Date: 2026-05-07
+> Version: 3.2
+> Date: 2026-05-12
 
 ## Executive Summary
 
@@ -102,7 +102,8 @@ See `docs/architecture/reference-architecture.png` for the full AWS reference ar
 | Branch Evaluation CLI | `scripts/evaluate_branch.py` | CLI entrypoint for local and CI evaluation (exit 0/1) |
 | Branch Evaluation Workflow | `.github/workflows/evaluate-branch.yml` | GitHub Action: PR trigger → evaluate → comment → check status → auto-merge |
 | Branch Evaluation Hook | `.kiro/hooks/fde-branch-eval.kiro.hook` | Local userTriggered evaluation via Kiro agent |
-| Risk Inference Engine | `src/core/risk/` (3 modules) | Bayesian P(Failure\|Context) scoring: 13 signals → sigmoid → classification (pass/warn/escalate/block) with SHAP-like explanations and self-improving weights |
+| Risk Inference Engine | `src/core/risk/` (3 modules) | Bayesian P(Failure\|Context) scoring: 16 signals → sigmoid → classification (pass/warn/escalate/block) with SHAP-like explanations and self-improving weights |
+| SWE Synapses Engine | `src/core/synapses/` (6 modules) | Cognitive design intelligence: 5 synapses (depth, bundle coherence, paradigm, decomposition cost, epistemic stance) fire pre-execution to produce prescriptive guidance for the Conductor and 3 additional risk signals |
 | DORA Forecast Engine | `src/core/metrics/dora_forecast.py` | Predictive DORA metrics: EWMA projection, level forecasting (T+7d, T+30d), weakest link identification, health pulse (0-100) for portal DORA Sun |
 | Code KB Query Tool | `infra/docker/agents/tools.py` (`query_code_kb`) | Agent-callable @tool exposing QueryAPI with 5 search modes (semantic, function, callers, callees, module) |
 | Incremental Indexer | `src/core/knowledge/incremental_indexer.py` | Re-indexes only changed files on PR merge; delegates to CallGraphExtractor + DescriptionGenerator + VectorStore |
@@ -148,6 +149,8 @@ See `docs/adr/` for detailed Architecture Decision Records:
 - ADR-017: React Portal for Factory Observability UX
 - ADR-018: Branch Evaluation Agent — Automated Quality Gate for Merge Readiness
 - ADR-022: Risk Inference Engine — Bayesian P(Failure|Context) Predictive Scoring
+- ADR-023: DORA Forecast Engine — Predictive DORA Metrics with EWMA Projection
+- ADR-024: SWE Synapses — Cognitive Design Intelligence for Agent Architecture
 
 ## Testing Design
 
@@ -170,6 +173,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 | Language Lint | `python3 scripts/lint_language.py` | Violent, trauma, weasel word detection |
 | Full Suite | `python3 -m pytest tests/ -v` | All 171 tests across 15 test files |
 | Risk Inference Engine | `python3 -m pytest tests/test_risk_inference_engine.py` | 33 tests: signal extraction, inference, thresholds, XAI, optimizer, scenarios |
+| SWE Synapses Engine | `python3 -c "from src.core.synapses import SynapseEngine"` | Import verification + 3 integration scenarios (O1/O3/O5) |
 | DORA Forecast Engine | `python3 -m pytest tests/test_dora_forecast.py` | 33 tests: EWMA, trend classification, level projection, health pulse, risk integration |
 | Knowledge Pipeline | `python3 -m pytest tests/integration/test_knowledge_pipeline.py` | Call graph extraction, descriptions, vector store, query API, annotations, quality |
 
@@ -179,7 +183,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 2. ~~When to introduce Strands SDK for parallel agent orchestration~~ — **Resolved**: Strands SDK deployed in `infra/docker/agents/` (2026-05-05). Agent registry, builder, and orchestrator use Strands Agent instances.
 3. How to measure ROI of the factory compared to traditional development
 4. When to promote `fde-doc-gardening` from `userTriggered` to `postTaskExecution` (COE-012 recurrence suggests now)
-5. ~~When to add predictive risk scoring before agent execution~~ — **Resolved**: Risk Inference Engine deployed at `src/core/risk/` (2026-05-12). Bayesian P(Failure|Context) with 13 signals, sigmoid activation, SHAP-like explanations, and self-improving weights via gradient descent. See ADR-022.
+5. ~~When to add predictive risk scoring before agent execution~~ — **Resolved**: Risk Inference Engine deployed at `src/core/risk/` (2026-05-12). Bayesian P(Failure|Context) with 16 signals (13 base + 3 SWE Synapse), sigmoid activation, SHAP-like explanations, and self-improving weights via gradient descent. SWE Synapses Engine at `src/core/synapses/` provides prescriptive design intelligence. See ADR-022, ADR-024.
 
 ## References
 

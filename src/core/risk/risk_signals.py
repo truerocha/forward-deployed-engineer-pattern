@@ -63,6 +63,11 @@ class RiskSignals:
     prior_success: float = 0.0            # Same task type succeeded before (0=never, 1=always)
     catalog_confidence: float = 0.0       # Onboarding catalog confidence (0=low, 1=high)
 
+    # SWE Synapse signals (fde-design-swe-sinapses.md Section 8.2)
+    interface_depth_ratio: float = 0.5    # Synapse 1: module depth (0=shallow, 1=deep) — PROTECTIVE
+    decomposition_cost_ratio: float = 0.0  # Synapse 4: decomposition cost (0=justified, 1=harmful) — RISK
+    paradigm_fit_score: float = 0.5       # Synapse 3: paradigm match (0=mismatch, 1=perfect) — PROTECTIVE
+
     def to_vector(self) -> list[float]:
         """Convert to ordered vector for matrix operations."""
         return [
@@ -79,6 +84,9 @@ class RiskSignals:
             self.test_coverage,
             self.prior_success,
             self.catalog_confidence,
+            self.interface_depth_ratio,
+            self.decomposition_cost_ratio,
+            self.paradigm_fit_score,
         ]
 
     def to_dict(self) -> dict[str, float]:
@@ -97,6 +105,9 @@ class RiskSignals:
             "test_coverage": self.test_coverage,
             "prior_success": self.prior_success,
             "catalog_confidence": self.catalog_confidence,
+            "interface_depth_ratio": self.interface_depth_ratio,
+            "decomposition_cost_ratio": self.decomposition_cost_ratio,
+            "paradigm_fit_score": self.paradigm_fit_score,
         }
 
 

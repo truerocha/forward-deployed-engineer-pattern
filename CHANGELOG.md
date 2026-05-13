@@ -8,6 +8,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-12
 
+### Added — SWE Synapses Cognitive Architecture (ADR-024)
+- `src/core/synapses/__init__.py` — New package implementing five cognitive design principles extracted from peer-reviewed software engineering theory. Each synapse is grounded in academic research, measurable via the Risk Engine, actionable by the Conductor, and observable via the Fidelity Score.
+- `src/core/synapses/paradigm_selector.py` — Synapse 3 (Ralph 2013): Selects rational, alternative, or hybrid design paradigm based on organism level, prior success rate, requirement stability, and domain novelty. Generates conductor guidance for topology selection.
+- `src/core/synapses/decomposition_cost.py` — Synapse 4 (Homay 2025): Evaluates whether task decomposition is cost-justified using the Fundamental Theorem of Software Engineering. Detects over-decomposition and recommends consolidation when agents share excessive state.
+- `src/core/synapses/interface_depth.py` — Synapse 1 (Ousterhout/APOSD): Measures module depth (interface surface vs implementation richness), scores agent instruction quality (WHAT vs HOW), and detects entanglement between agents via SCD field sharing.
+- `src/core/synapses/bundle_coherence.py` — Synapse 2 (Wei 2026): Validates that Conductor-generated WorkflowPlans maintain architectural bundle coherence. Enforces empirically-validated co-occurrence rules (multi-agent requires durable context, broad tools require policy approval, recursive requires depth limits).
+- `src/core/synapses/epistemic_stance.py` — Synapse 5 (King & Kimble 2004): Decomposes catalog_confidence into four epistemic sub-signals (structural, behavioral, domain, change). Classifies artifact type (code vs knowledge), identifies assumptions to document, and recommends execution approach.
+- `src/core/synapses/synapse_engine.py` — Integrated engine orchestrating all five synapses in correct firing order. Produces SynapseAssessment with risk signals, design quality score, conductor guidance, and recommended topology.
+- `docs/adr/ADR-024-swe-synapses-cognitive-architecture.md` — Architecture decision record documenting the five synapses, academic grounding, Risk Engine extension, Fidelity Score enhancement, and Conductor integration.
+
+### Changed — Risk Engine Extended to 16 Signals (ADR-024)
+- `src/core/risk/risk_signals.py` — Added 3 new signal fields: `interface_depth_ratio` (Synapse 1, protective), `decomposition_cost_ratio` (Synapse 4, risk), `paradigm_fit_score` (Synapse 3, protective). Signal vector extended from 13 to 16 dimensions.
+- `src/core/risk/risk_config.py` — Added 3 new weights: `w_interface_depth_ratio` (-1.2), `w_decomposition_cost_ratio` (+1.0), `w_paradigm_fit_score` (-0.8). Weight vector extended from 13 to 16 dimensions.
+- `src/core/risk/inference_engine.py` — Extended signal-to-weight mapping in XAI explanation generation to include the 3 new synapse signals.
+
+### Changed — Fidelity Score Enhanced with Design Quality Dimension (ADR-024)
+- `src/core/brain_sim/fidelity_score.py` — Added `design_quality` dimension (25% weight) measuring synapse satisfaction. Rebalanced existing dimensions (spec_adherence 25%, reasoning_quality 15%, context_utilization 10%, governance_compliance 15%, user_value_delivery 10%). Backward compatible: returns 0.5 when no synapse assessment is provided.
+
+### Changed — Conductor Integration with SynapseEngine (ADR-024)
+- `src/core/orchestration/conductor_integration.py` — `generate_conductor_manifest()` now runs the SynapseEngine pre-plan (determines paradigm, recommended agents, conductor guidance) and post-plan (validates depth and coherence). Synapse assessment metadata stored in manifest for downstream observability. Added `data_contract`, `catalog_metadata`, `prior_success_rate`, and `failure_recurrence` parameters for synapse input.
+
 ### Added — Persona-Based Portal UX + DORA Sun Card (PEC Blueprint Ch. 11-12)
 - `infra/portal-src/src/components/DoraSunCard.tsx` — Radial health pulse gauge (0-100) with pulsing animation, DORA level badge, 7d projection, per-metric trend arrows, and weakest link identification. Consumes `DoraForecastEngine` output via API.
 - `infra/portal-src/src/components/PersonaFilteredCards.tsx` — Role-based card filtering. Each persona (PM/SWE/SRE/Architect/Staff) sees a curated 5-8 card subset. Single source of truth for visibility matrix. Reduces cognitive load per the PEC Blueprint's "Economia de Atenção" principle.
