@@ -190,8 +190,56 @@ def main():
     # so we extract individual fields and reconstruct the event here.
     event_source = os.environ.get("EVENT_SOURCE", "")
     event_action = os.environ.get("EVENT_ACTION", "")
+    event_detail_type = os.environ.get("EVENT_DETAIL_TYPE", "")
 
-    if eventbridge_event:
+    # Rework handler (ADR-027): detect task.rework_requested events
+    # Works in BOTH monolith and distributed mode — monolith is the universal fallback
+    if event_detail_type == "task.rework_requested":
+        task_id = os.environ.get("EVENT_TASK_ID", "")
+        repo = os.environ.get("EVENT_REPO", "")
+        pr_number = os.environ.get("EVENT_PR_NUMBER", "")
+        rework_attempt = os.environ.get("EVENT_REWORK_ATTEMPT", "1")
+        reviewer = os.environ.get("EVENT_REVIEWER", "")
+        constraint = os.environ.get("EVENT_REWORK_CONSTRAINT", "")
+
+        logger.info(
+            "Mode: REWORK (task=%s repo=%s pr=#%s attempt=%s reviewer=%s)",
+            task_id, repo, pr_number, rework_attempt, reviewer,
+        )
+
+        # Reconstruct as a normal issue event but inject the rework constraint
+        # The orchestrator will process it as a regular task with additional context
+        reconstructed_event = {
+            "source": "fde.internal",
+            "detail-type": "task.rework_requested",
+            "detail": {
+                "action": "labeled",
+                "label": {"name": "factory-ready"},
+                "issue": {
+                    "number": int(pr_number or "0"),
+                    "title": f"[REWORK #{rework_attempt}] {repo} PR #{pr_number}",
+                    "body": (
+                        f"## REWORK TASK (attempt {rework_attempt}/2)\n\n"
+                        f"**Original PR**: #{pr_number}\n"
+                        f"**Reviewer**: {reviewer}\n"
+                        f"**Repository**: {repo}\n\n"
+                        f"### Rework Constraint\n\n{constraint}\n\n"
+                        f"### Acceptance Criteria\n\n"
+                        f"- [ ] Address all feedback from reviewer\n"
+                        f"- [ ] CI test suite passes locally before PR update\n"
+                        f"- [ ] Push fixes to existing branch\n"
+                    ),
+                    "labels": [{"name": "factory-ready"}],
+                },
+                "repository": {
+                    "full_name": repo,
+                },
+            },
+        }
+        result = orchestrator.handle_event(reconstructed_event)
+        logger.info("Rework result: %s", json.dumps(result, default=str))
+
+    elif eventbridge_event:
         logger.info("Mode: EventBridge event (EVENTBRIDGE_EVENT)")
         result = orchestrator.handle_event(json.loads(eventbridge_event))
         logger.info("Result: %s", json.dumps(result, default=str))
