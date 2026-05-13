@@ -13,6 +13,14 @@ build/
 .kiro/settings/mcp.json
 .kiro/specs/WORKING_MEMORY.md
 .kiro/specs/holdout/
+
+# FDE workspace-local configuration (hooks + steering are per-developer)
+.kiro/hooks/
+.kiro/steering/
+
+# Internal working documents (academic papers, drafts, design inputs)
+docs/internal/
+fde-design-swe-sinapses.md
 infra/terraform/.terraform/
 infra/terraform/.build/
 infra/terraform/terraform.tfstate
