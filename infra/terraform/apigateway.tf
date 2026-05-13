@@ -81,42 +81,33 @@ resource "aws_iam_role_policy" "apigateway_eventbridge" {
 resource "aws_apigatewayv2_integration" "github_webhook" {
   api_id                 = aws_apigatewayv2_api.webhook.id
   integration_type       = "AWS_PROXY"
-  integration_subtype    = "EventBridge-PutEvents"
-  credentials_arn        = aws_iam_role.apigateway_eventbridge.arn
-  payload_format_version = "1.0"
-  request_parameters = {
-    "EventBusName" = aws_cloudwatch_event_bus.factory.arn
-    "Source"       = "fde.github.webhook"
-    "DetailType"   = "issue.labeled"
-    "Detail"       = "$request.body"
+  integration_uri        = aws_lambda_function.webhook_router.invoke_arn
+  payload_format_version = "2.0"
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
 resource "aws_apigatewayv2_integration" "gitlab_webhook" {
   api_id                 = aws_apigatewayv2_api.webhook.id
   integration_type       = "AWS_PROXY"
-  integration_subtype    = "EventBridge-PutEvents"
-  credentials_arn        = aws_iam_role.apigateway_eventbridge.arn
-  payload_format_version = "1.0"
-  request_parameters = {
-    "EventBusName" = aws_cloudwatch_event_bus.factory.arn
-    "Source"       = "fde.gitlab.webhook"
-    "DetailType"   = "issue.updated"
-    "Detail"       = "$request.body"
+  integration_uri        = aws_lambda_function.webhook_router.invoke_arn
+  payload_format_version = "2.0"
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
 resource "aws_apigatewayv2_integration" "asana_webhook" {
   api_id                 = aws_apigatewayv2_api.webhook.id
   integration_type       = "AWS_PROXY"
-  integration_subtype    = "EventBridge-PutEvents"
-  credentials_arn        = aws_iam_role.apigateway_eventbridge.arn
-  payload_format_version = "1.0"
-  request_parameters = {
-    "EventBusName" = aws_cloudwatch_event_bus.factory.arn
-    "Source"       = "fde.asana.webhook"
-    "DetailType"   = "task.moved"
-    "Detail"       = "$request.body"
+  integration_uri        = aws_lambda_function.webhook_router.invoke_arn
+  payload_format_version = "2.0"
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
