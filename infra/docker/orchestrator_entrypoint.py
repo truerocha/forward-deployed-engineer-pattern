@@ -74,6 +74,13 @@ def main() -> None:
         SquadManifest,
         AgentSpec,
     )
+    from src.core.orchestration.heartbeat import (
+        select_execution_mode,
+        ExecutionMode,
+        HeartbeatAwareConductor,
+    )
+    from src.core.orchestration.task_ownership import AtomicTaskOwnership
+    from src.core.orchestration.goal_ancestry import GoalAncestryTracker
 
     # Import monolith router for event parsing (reuses existing logic)
     sys.path.insert(0, "/app")
@@ -137,6 +144,26 @@ def main() -> None:
 
     # Clone repo to EFS workspace
     workspace_path = _clone_to_efs(task_id, data_contract)
+
+    # Initialize Synapse 7 governance: AtomicTaskOwnership + GoalAncestry
+    ownership = AtomicTaskOwnership(
+        workflow_plan_id=task_id,
+        original_request=data_contract.get("title", decision.prompt[:200]),
+        max_concurrent_assignments=4,
+    )
+    goal_tracker = GoalAncestryTracker(
+        original_request=data_contract.get("title", decision.prompt[:200]),
+        workflow_plan_id=task_id,
+    )
+
+    # Determine execution mode (Synapse 6: heartbeat for O4-O5)
+    exec_mode = select_execution_mode(organism_level)
+    logger.info("Execution mode: %s (organism=%s)", exec_mode.value, organism_level)
+
+    # Store governance metadata in manifest for observability
+    manifest.knowledge_context["_execution_mode"] = exec_mode.value
+    manifest.knowledge_context["_goal_ancestry"] = goal_tracker.to_dict()
+    manifest.knowledge_context["_task_ownership"] = {"plan_id": task_id, "max_concurrent": 4}
 
     # Dispatch via DistributedOrchestrator
     orchestrator = DistributedOrchestrator(

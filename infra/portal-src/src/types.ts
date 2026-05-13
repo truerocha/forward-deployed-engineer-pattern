@@ -19,6 +19,13 @@ export interface Agent {
   paradigm?: string;
   designQuality?: number;
   durationSeconds?: number;
+  // Synapse 6: Transparency metrics
+  reasoningDivergence?: number;
+  heartbeatPhase?: string;
+  transparencyProbeCount?: number;
+  // Synapse 7: Ownership & ancestry
+  goalAncestryDepth?: number;
+  executionMode?: 'standard' | 'heartbeat';
 }
 
 export interface LogEntry {

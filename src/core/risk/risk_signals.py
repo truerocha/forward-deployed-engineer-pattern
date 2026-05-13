@@ -68,6 +68,12 @@ class RiskSignals:
     decomposition_cost_ratio: float = 0.0  # Synapse 4: decomposition cost (0=justified, 1=harmful) — RISK
     paradigm_fit_score: float = 0.5       # Synapse 3: paradigm match (0=mismatch, 1=perfect) — PROTECTIVE
 
+    # Synapse 6 signal: Agent Thought Transparency (fde-design-swe-sinapses.md Section 8.5)
+    reasoning_divergence: float = 0.0     # Synapse 6: ATTP divergence (0=aligned, 1=divergent) — RISK
+
+    # Synapse 7 signal: Deterministic Harness (fde-design-swe-sinapses.md Section 9.5)
+    coordination_overhead_ratio: float = 0.0  # Synapse 7: coordination cost (0=independent, 1=saturated) — RISK
+
     def to_vector(self) -> list[float]:
         """Convert to ordered vector for matrix operations."""
         return [
@@ -87,6 +93,8 @@ class RiskSignals:
             self.interface_depth_ratio,
             self.decomposition_cost_ratio,
             self.paradigm_fit_score,
+            self.reasoning_divergence,
+            self.coordination_overhead_ratio,
         ]
 
     def to_dict(self) -> dict[str, float]:
@@ -108,6 +116,8 @@ class RiskSignals:
             "interface_depth_ratio": self.interface_depth_ratio,
             "decomposition_cost_ratio": self.decomposition_cost_ratio,
             "paradigm_fit_score": self.paradigm_fit_score,
+            "reasoning_divergence": self.reasoning_divergence,
+            "coordination_overhead_ratio": self.coordination_overhead_ratio,
         }
 
 

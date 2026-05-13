@@ -290,7 +290,9 @@ class Orchestrator:
         # ADR-019: Dynamic squad composition when SQUAD_MODE=dynamic
         if should_use_dynamic_squad():
             task_type = data_contract.get("type", "feature")
-            manifest = compose_default_squad(task_type, task_id, complexity="medium")
+            # Infer complexity from data contract signals (not hardcoded)
+            complexity = self._infer_task_complexity(data_contract)
+            manifest = compose_default_squad(task_type, task_id, complexity=complexity)
             agent_names = manifest.get_all_agents()
             task_queue.append_task_event(
                 task_id, "system",
@@ -800,6 +802,65 @@ class Orchestrator:
 
         # Bugfix and documentation with no constraints/docs → fast path
         return not has_constraints and not has_related_docs
+
+    @staticmethod
+    def _infer_task_complexity(data_contract: dict) -> str:
+        """Infer task complexity from data contract signals.
+
+        Uses structural signals from the data contract to determine
+        whether the task is low, medium, or high complexity. This drives
+        squad composition — more complex tasks get more specialized agents.
+
+        Signals used:
+          - estimated_files: >8 files → high, >3 → medium, else low
+          - affected_modules: >2 modules → high, >1 → medium
+          - constraints count: >3 → high
+          - task_type: infrastructure/architecture → high
+          - related_docs presence: indicates cross-cutting concern
+
+        Returns:
+            "low" | "medium" | "high"
+        """
+        score = 0
+
+        # File count signal
+        estimated_files = data_contract.get("estimated_files", 1)
+        if isinstance(estimated_files, str):
+            estimated_files = {"few": 3, "several": 7, "many": 12}.get(estimated_files, 5)
+        if estimated_files > 8:
+            score += 2
+        elif estimated_files > 3:
+            score += 1
+
+        # Module breadth signal
+        modules = data_contract.get("affected_modules", [])
+        if isinstance(modules, list) and len(modules) > 2:
+            score += 2
+        elif isinstance(modules, list) and len(modules) > 1:
+            score += 1
+
+        # Constraints signal
+        constraints_text = data_contract.get("constraints", "") or ""
+        if constraints_text.count("\n") > 3 or len(constraints_text) > 200:
+            score += 1
+
+        # Task type signal
+        task_type = data_contract.get("type", "feature")
+        if task_type in ("infrastructure", "architecture"):
+            score += 2
+        elif task_type == "refactoring":
+            score += 1
+
+        # Related docs signal (cross-cutting concern)
+        if data_contract.get("related_docs"):
+            score += 1
+
+        # Classify
+        if score >= 4:
+            return "high"
+        elif score >= 2:
+            return "medium"
+        return "low"
 
     # ─── Constraint Extraction ──────────────────────────────────
 

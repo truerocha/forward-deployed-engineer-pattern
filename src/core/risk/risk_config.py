@@ -105,6 +105,12 @@ class SignalWeights:
     w_decomposition_cost_ratio: float = 1.0  # Synapse 4: high cost ratio increases risk
     w_paradigm_fit_score: float = -0.8     # Synapse 3: good paradigm fit reduces risk (protective)
 
+    # Synapse 6: Agent Thought Transparency (fde-design-swe-sinapses.md Section 8.5)
+    w_reasoning_divergence: float = 1.5    # High divergence = hidden motivation risk
+
+    # Synapse 7: Deterministic Harness (fde-design-swe-sinapses.md Section 9.5)
+    w_coordination_overhead_ratio: float = 1.3  # High overhead = coordination saturation risk
+
     def to_dict(self) -> dict[str, float]:
         """Serialize weights for persistence and observability."""
         return {
@@ -124,6 +130,8 @@ class SignalWeights:
             "w_interface_depth_ratio": self.w_interface_depth_ratio,
             "w_decomposition_cost_ratio": self.w_decomposition_cost_ratio,
             "w_paradigm_fit_score": self.w_paradigm_fit_score,
+            "w_reasoning_divergence": self.w_reasoning_divergence,
+            "w_coordination_overhead_ratio": self.w_coordination_overhead_ratio,
         }
 
     @classmethod

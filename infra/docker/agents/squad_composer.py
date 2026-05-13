@@ -26,7 +26,7 @@ from typing import Any
 logger = logging.getLogger("fde.squad_composer")
 
 # Feature flag — controls whether dynamic squad composition is active
-SQUAD_MODE = os.environ.get("SQUAD_MODE", "classic")
+SQUAD_MODE = os.environ.get("SQUAD_MODE", "dynamic")
 
 
 # ─── Squad Manifest Schema ──────────────────────────────────────
@@ -214,7 +214,7 @@ def compose_from_manifest_json(manifest_json: str, task_id: str) -> SquadManifes
 def compose_default_squad(task_type: str, task_id: str, complexity: str = "medium") -> SquadManifest:
     """Compose a default squad when the intake agent doesn't produce a manifest."""
     if task_type == "bugfix":
-        groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+        groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = [], []
     elif task_type == "documentation":
         groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-tech-writer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
@@ -233,7 +233,7 @@ def compose_default_squad(task_type: str, task_id: str, complexity: str = "mediu
             groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["swe-architect-agent", "architect-standard-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent", "code-perf-agent"], "quality": ["swe-code-quality-agent", "swe-adversarial-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
             parallel, pillars = ["waf_review", "quality"], ["security", "reliability", "performance_efficiency"]
         else:  # medium
-            groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+            groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
             parallel, pillars = ["waf_review"], ["security", "reliability"]
 
     return SquadManifest(task_id=task_id, complexity=complexity, groups=groups, parallel_groups=parallel, rationale=f"Default {task_type}/{complexity} squad", waf_pillars=pillars)

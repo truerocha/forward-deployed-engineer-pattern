@@ -6,6 +6,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased] — 2026-05-13
+
+### Added — Synapse 6 & 7: Transparency and Deterministic Harness (ADR-026)
+- `src/core/risk/attp.py` — Agent Thought Transparency Protocol (ATTP): NLA-lite probing of agent hidden reasoning. Includes `AgentThoughtTransparency` dataclass, `probe_agent_transparency()` function, `compute_divergence_score()`, introspection prompt templates, and `ATTPBudget` for cost governance.
+- `src/core/orchestration/task_ownership.py` — Atomic task ownership with lock semantics. Prevents MAST taxonomy's #1 failure mode (two agents claiming same work). Includes `AtomicTaskOwnership`, `TaskAssignment`, timeout detection, and goal ancestry computation.
+- `src/core/orchestration/goal_ancestry.py` — Goal ancestry tracker: traces every subtask back to original user request. Includes `GoalAncestryTracker`, `GoalAncestryChain`, `GoalAlignmentResult`, and `validate_goal_alignment()` for adversarial gate integration.
+- `src/core/orchestration/heartbeat.py` — Heartbeat-aware Conductor for O4-O5 tasks. Implements OpenClaw persistent execution pattern (check, evaluate, probe, act/wait cycle). Includes `HeartbeatAwareConductor`, `HeartbeatConfig`, `HeartbeatState`, and budget governance.
+- `.kiro/steering/harness-first.md` — The 1.6% Rule steering: formalizes that new capabilities must be harness infrastructure, not prompt instructions.
+- `docs/adr/ADR-025-permission-pipeline-alignment.md` — Superset proof: FDE gate architecture covers all 7 layers of Liu et al.'s permission pipeline plus 10 additional governance mechanisms.
+- `docs/adr/ADR-026-synapse-6-7-implementation.md` — Architecture decision record for Synapse 6 and 7 implementation.
+
+### Changed — Risk Engine Extended to 18 Signals
+- `src/core/risk/risk_signals.py` — Added `reasoning_divergence` (signal 17, Synapse 6) and `coordination_overhead_ratio` (signal 18, Synapse 7) to `RiskSignals` dataclass.
+- `src/core/risk/risk_config.py` — Added weights `w_reasoning_divergence=+1.5` and `w_coordination_overhead_ratio=+1.3` to `SignalWeights`.
+- `src/core/risk/inference_engine.py` — Extended signal-to-weight mapping to cover 18 signals in explanation generation.
+
+### Changed — Fidelity Score Extended to 7 Dimensions
+- `src/core/brain_sim/fidelity_score.py` — Added `transparency` dimension (weight 0.15). Rebalanced: spec_adherence 0.25 to 0.20, design_quality 0.25 to 0.15. New `_score_transparency()` method measures reasoning consistency, escalation rate, and decision stability from ATTP probes.
+
+### Changed — Adversarial Gate v2.1.0 (Synapse 6+7 Enhanced)
+- `.kiro/hooks/fde-adversarial-gate.kiro.hook` — Added question 9 (goal ancestry validation from Synapse 7) and question 10 (transparency probe from Synapse 6).
+
+### Changed — Conductor Agent Pool
+- `src/core/orchestration/conductor.py` — Added `swe-tech-writer-agent` to `_AGENT_CAPABILITIES` with strengths: documentation, changelog, adr, readme.
+
+### Changed — Infrastructure
+- `infra/terraform/modules/ecs/orchestrator_task_def.tf` — Added env vars: `HEARTBEAT_TOKEN_BUDGET`, `ATTP_PROBE_BUDGET`, `TOTAL_TASK_CEILING`, `HEARTBEAT_ENABLED`.
+- `infra/docker/orchestrator_entrypoint.py` — Wired `HeartbeatAwareConductor`, `AtomicTaskOwnership`, `GoalAncestryTracker` into distributed execution path.
+- `infra/portal-src/src/types.ts` — Extended Agent interface with transparency/heartbeat fields.
+- `infra/portal-src/src/components/BrainSimCard.tsx` — Renders transparency score and heartbeat cycle count.
+
+### Fixed — Static Squad Composition (COE-053)
+- `infra/docker/agents/squad_composer.py` — Changed `SQUAD_MODE` default from `"classic"` to `"dynamic"`. Added `swe-tech-writer-agent` to delivery group for medium features and bugfixes.
+- `infra/docker/agents/orchestrator.py` — Added `_infer_task_complexity()` method replacing hardcoded `complexity="medium"`. Infers low/medium/high from file count, module breadth, task type, and constraints.
+
+### Fixed — Portal Light Mode Readability
+- `infra/portal-src/src/index.css` — Complete theme variable system overhaul. Added semantic variables for surfaces, text tiers, and accent states. Fixed light mode contrast. Resolved dead `dark:` prefix classes.
+- `infra/portal-src/index.html` — Added render-blocking FOUC prevention script.
+- `infra/portal-src/src/App.tsx` — Theme state initializes from localStorage with system preference fallback. Persists theme choice on change.
+
+---
+
 ## [Unreleased] — 2026-05-12
 
 ### Added — SWE Synapses Cognitive Architecture (ADR-024)

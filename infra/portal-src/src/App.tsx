@@ -52,7 +52,14 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [activeView, setActiveView] = useState<AppView>('pipeline');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    // Read from localStorage (synced with blocking script in index.html)
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('fde-theme') : null;
+    if (stored === 'light' || stored === 'dark') return stored;
+    // Respect system preference
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+    return 'dark';
+  });
   const [apiStatus, setApiStatus] = useState<any>(null);
   const [factoryData, setFactoryData] = useState<any>(null);
   const [activePersona, setActivePersona] = useState<string>('SWE');
@@ -150,9 +157,10 @@ export default function App() {
     }
   }, [API_URL]);
 
-  // Sync theme with document
+  // Sync theme with document and persist to localStorage
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('fde-theme', theme);
   }, [theme]);
 
   // Initial load

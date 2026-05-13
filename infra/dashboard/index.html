@@ -5,8 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="factory-api-url" content="">
     <title>Forward Deployed Software Factory</title>
-    <script type="module" crossorigin src="./assets/index-C0jMjlWU.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-n6MZDNzA.css">
+    <!-- FOUC Prevention: Apply theme before any rendering occurs -->
+    <script>
+      (function() {
+        var theme = localStorage.getItem('fde-theme');
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-BSSBaXnd.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-0-vbp2w6.css">
   </head>
   <body>
     <div id="root"></div>

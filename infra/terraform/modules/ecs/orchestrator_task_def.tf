@@ -92,6 +92,11 @@ resource "aws_ecs_task_definition" "orchestrator" {
         { name = "MAX_CONCURRENT_AGENTS", value = "6" },
         { name = "STAGE_TIMEOUT_SECONDS", value = "600" },
         { name = "DISPATCH_MODE", value = "parallel-within-stage" },
+        # Synapse 6: Heartbeat governance budgets
+        { name = "HEARTBEAT_TOKEN_BUDGET", value = "5000" },
+        { name = "ATTP_PROBE_BUDGET", value = "10000" },
+        { name = "TOTAL_TASK_CEILING", value = "200000" },
+        { name = "HEARTBEAT_ENABLED", value = "true" },
         # Observability
         { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://localhost:4318" },
         { name = "OTEL_SERVICE_NAME", value = "${var.name_prefix}-orchestrator" },

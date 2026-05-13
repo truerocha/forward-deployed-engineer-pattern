@@ -357,6 +357,8 @@ class RiskInferenceEngine:
             "interface_depth_ratio": "w_interface_depth_ratio",
             "decomposition_cost_ratio": "w_decomposition_cost_ratio",
             "paradigm_fit_score": "w_paradigm_fit_score",
+            "reasoning_divergence": "w_reasoning_divergence",
+            "coordination_overhead_ratio": "w_coordination_overhead_ratio",
         }
 
         contributions = []

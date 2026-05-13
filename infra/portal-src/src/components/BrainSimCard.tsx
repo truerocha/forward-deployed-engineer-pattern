@@ -6,6 +6,11 @@ interface BrainSimCardProps {
   emulation_ratio_percent?: number;
   organism_level?: string;
   memory_wall_detected?: boolean;
+  // Synapse 6: Transparency metrics
+  transparency_score?: number;
+  reasoning_divergence_avg?: number;
+  execution_mode?: 'standard' | 'heartbeat';
+  heartbeat_cycles?: number;
 }
 
 const Sparkline: React.FC<{ data: number[]; width?: number; height?: number }> = ({
@@ -66,6 +71,10 @@ export const BrainSimCard: React.FC<BrainSimCardProps> = ({
   emulation_ratio_percent,
   organism_level,
   memory_wall_detected,
+  transparency_score,
+  reasoning_divergence_avg,
+  execution_mode,
+  heartbeat_cycles,
 }) => {
   const hasData = fidelity_trend || emulation_ratio_percent !== undefined || organism_level;
 
@@ -128,6 +137,26 @@ export const BrainSimCard: React.FC<BrainSimCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Transparency metrics (Synapse 6) */}
+      {(transparency_score !== undefined || execution_mode) && (
+        <div className="grid grid-cols-2 gap-4 mb-4 pt-3 border-t border-border-main">
+          {transparency_score !== undefined && (
+            <div>
+              <p className="text-[9px] text-secondary-dynamic uppercase mb-1">Transparency</p>
+              <p className={`text-xl font-mono font-bold ${transparency_score >= 0.7 ? 'text-emerald-400' : transparency_score >= 0.4 ? 'text-amber-400' : 'text-red-400'}`}>
+                {(transparency_score * 100).toFixed(0)}%
+              </p>
+            </div>
+          )}
+          {execution_mode === 'heartbeat' && (
+            <div>
+              <p className="text-[9px] text-secondary-dynamic uppercase mb-1">Heartbeat</p>
+              <p className="text-xl font-mono font-bold text-aws-orange">{heartbeat_cycles || 0} cycles</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sparkline */}
       {fidelity_trend && fidelity_trend.length > 1 && (

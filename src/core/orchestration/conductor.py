@@ -208,6 +208,11 @@ _AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
         "model_tier": "fast",
         "cost_weight": 0.2,
     },
+    "swe-tech-writer-agent": {
+        "strengths": ["documentation", "changelog", "adr", "readme"],
+        "model_tier": "standard",
+        "cost_weight": 0.5,
+    },
 }
 
 MAX_RECURSIVE_DEPTH = 2

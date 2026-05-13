@@ -324,7 +324,7 @@ class TestRiskExplanation:
             dora_metrics=unhealthy_dora_metrics,
             failure_history=failure_history,
         )
-        assert len(assessment.explanation.contributions) == 16  # All 16 signals (13 base + 3 synapse)
+        assert len(assessment.explanation.contributions) == 18  # All 18 signals (13 base + 3 synapse + 2 synapse 6/7)
 
     def test_contributions_sorted_by_impact(
         self, default_engine, high_risk_contract, unhealthy_dora_metrics,
@@ -463,7 +463,7 @@ class TestSerialization:
     def test_signals_to_vector_length(self):
         signals = RiskSignals()
         vector = signals.to_vector()
-        assert len(vector) == 16  # 16 signals total (13 base + 3 synapse)
+        assert len(vector) == 18  # 18 signals total (13 base + 3 synapse + 2 synapse 6/7)
 
 
 # ─── Integration Scenario Tests ─────────────────────────────────
