@@ -126,6 +126,8 @@ AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
     # Delivery Agents — Standard (git ops, docs)
     "swe-tech-writer-agent": {"layer": "delivery", "tools": "ENGINEERING_TOOLS", "model": "standard", "description": "Updates repo docs: README, CHANGELOG, ADRs"},
     "swe-dtl-commiter-agent": {"layer": "delivery", "tools": "ENGINEERING_TOOLS", "model": "fast", "description": "Commits with FDE Squad Leader identity"},
+    # Independent Review (ADR-028) — MUST run BEFORE delivery, isolated from squad context
+    "fde-pr-reviewer-agent": {"layer": "review", "tools": "RECON_TOOLS", "model": "reasoning", "description": "Independent spec-alignment review: blocks delivery if quality insufficient"},
     # Reporting — Fast (structured output, no reasoning needed)
     "reporting-agent": {"layer": "reporting", "tools": "REPORTING_TOOLS", "model": "fast", "description": "Writes completion report, updates ALM"},
 }
@@ -214,26 +216,26 @@ def compose_from_manifest_json(manifest_json: str, task_id: str) -> SquadManifes
 def compose_default_squad(task_type: str, task_id: str, complexity: str = "medium") -> SquadManifest:
     """Compose a default squad when the intake agent doesn't produce a manifest."""
     if task_type == "bugfix":
-        groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+        groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = [], []
     elif task_type == "documentation":
         groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-tech-writer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = [], []
     elif task_type == "refactoring":
-        groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["fde-code-reasoning"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent", "swe-adversarial-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+        groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["fde-code-reasoning"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent", "swe-adversarial-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = ["quality"], []
     elif task_type == "infrastructure":
-        groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["swe-architect-agent", "architect-standard-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-ops-agent", "code-sec-agent", "code-cost-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+        groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["swe-architect-agent", "architect-standard-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-ops-agent", "code-sec-agent", "code-cost-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = ["waf_review"], ["operational_excellence", "security", "cost_optimization"]
     else:  # feature
         if complexity == "low":
-            groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+            groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
             parallel, pillars = [], []
         elif complexity == "high":
-            groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["swe-architect-agent", "architect-standard-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent", "code-perf-agent"], "quality": ["swe-code-quality-agent", "swe-adversarial-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+            groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["swe-architect-agent", "architect-standard-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent", "code-perf-agent"], "quality": ["swe-code-quality-agent", "swe-adversarial-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
             parallel, pillars = ["waf_review", "quality"], ["security", "reliability", "performance_efficiency"]
         else:  # medium
-            groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent"], "quality": ["swe-code-quality-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
+            groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
             parallel, pillars = ["waf_review"], ["security", "reliability"]
 
     return SquadManifest(task_id=task_id, complexity=complexity, groups=groups, parallel_groups=parallel, rationale=f"Default {task_type}/{complexity} squad", waf_pillars=pillars)
