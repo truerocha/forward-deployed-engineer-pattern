@@ -174,10 +174,15 @@ def append_task_event(task_id: str, event_type: str, message: str, **metadata) -
 
 
 def find_task_by_issue(issue_id: str) -> dict | None:
-    """Find a READY task by its issue_id field.
+    """Find a task by its issue_id field.
 
     Used by the orchestrator to correlate with the task created by the
     webhook_ingest Lambda. The issue_id format is 'owner/repo#number'.
+
+    Searches READY, DISPATCHED, and IN_PROGRESS statuses:
+      - READY: Lambda wrote the record but cognitive routing is disabled
+      - DISPATCHED: Lambda wrote the record with cognitive routing (ADR-030)
+      - IN_PROGRESS: Task already being executed (idempotency guard)
 
     Args:
         issue_id: The issue identifier (e.g., 'org/repo#42').
@@ -186,6 +191,17 @@ def find_task_by_issue(issue_id: str) -> dict | None:
         The task item if found, or None.
     """
     table = _get_table()
+
+    # Check DISPATCHED first (ADR-030: cognitive router sets this status)
+    dispatched_tasks = table.query(
+        IndexName="status-created-index",
+        KeyConditionExpression=Key("status").eq("DISPATCHED"),
+    ).get("Items", [])
+
+    for task in dispatched_tasks:
+        if task.get("issue_id") == issue_id:
+            return task
+
     # Query READY tasks and filter by issue_id
     ready_tasks = table.query(
         IndexName="status-created-index",
