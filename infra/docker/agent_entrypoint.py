@@ -366,8 +366,8 @@ def main():
         # Reconstruct as a normal issue event but inject the rework constraint
         # The orchestrator will process it as a regular task with additional context
         reconstructed_event = {
-            "source": "fde.internal",
-            "detail-type": "task.rework_requested",
+            "source": "fde.github.webhook",
+            "detail-type": "issue.labeled",
             "detail": {
                 "action": "labeled",
                 "label": {"name": "factory-ready"},
