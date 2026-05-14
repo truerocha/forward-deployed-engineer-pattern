@@ -54,7 +54,7 @@ REWORK_KEYWORDS = [
     "security concern", "breaks", "regression",
 ]
 
-MAX_REWORK_ATTEMPTS = 2
+MAX_REWORK_ATTEMPTS = 3
 REWORK_ESTIMATE_SECONDS = 1800  # 30 min
 
 
@@ -381,7 +381,7 @@ def _store_repo_constraint(review_event: dict, classification: str, task_id: str
         return
 
     # Extract the actionable constraint from the review body
-    review_body = review_event.get("body", "")
+    review_body = review_event.get("review_body", "") or review_event.get("body", "")
     constraint_text = _extract_constraint_from_review(review_body, classification)
 
     if not constraint_text:
@@ -550,9 +550,9 @@ def _update_task_status(task_id: str, status: str, review_event: dict) -> None:
             Key={"task_id": task_id},
             UpdateExpression=(
                 "SET #s = :status, updated_at = :now, "
-                "current_stage = :stage, result = :result"
+                "current_stage = :stage, #r = :result"
             ),
-            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeNames={"#s": "status", "#r": "result"},
             ExpressionAttributeValues={
                 ":status": status,
                 ":now": now,
