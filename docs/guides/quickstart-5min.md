@@ -1,7 +1,8 @@
 # 5-Minute Quickstart — See the Factory Work
 
-> No tokens. No cloud accounts. No configuration.
+> No tokens. No cloud accounts. No configuration. No specific IDE required.
 > Just clone, run, and see what the Autonomous Code Factory produces.
+> Works with any AI-assisted editor: Kiro, Cursor, VS Code + Copilot, Cline, Claude Code, or Q Developer.
 
 ---
 
@@ -146,7 +147,7 @@ head -30 config/mappings/recommendation_templates.yaml
 A: No. The test suite is fully self-contained. The deployment scripts (`pre-flight-fde.sh`, etc.) only connect to resources you explicitly configure — and cloud deployment defaults to "no".
 
 **Q: Can I use this without Kiro IDE?**
-A: Yes. The pattern exports rules to 6 platforms: Kiro, Q Developer, Cursor, Cline, Claude Code, and Copilot. See `.amazonq/`, `.cursor/`, `.claude/`, and `.clinerules/` directories.
+A: Yes. The pattern works with any AI-assisted IDE. It exports rules to 6 platforms: Kiro, Q Developer, Cursor, Cline, Claude Code, and Copilot. See `.amazonq/`, `.cursor/`, `.claude/`, and `.clinerules/` directories. The scripts detect your environment and configure accordingly — no single IDE is required.
 
 **Q: What if I just want the hooks and steerings for my project?**
 A: Run `bash scripts/provision-workspace.sh --project` from your project directory. It copies the factory template without any cloud setup.

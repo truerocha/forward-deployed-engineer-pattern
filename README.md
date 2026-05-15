@@ -155,11 +155,13 @@ bash scripts/code-factory-setup.sh
 ```
 
 **What the scripts do:**
-- `pre-flight-fde.sh` — Checks your tools (git, node, python, docker), collects credentials interactively, writes a manifest to `~/.kiro/fde-manifest.json`
-- `validate-deploy-fde.sh` — Validates API access to your ALM platform (GitHub Projects, GitLab, or Asana)
-- `code-factory-setup.sh` — Installs hooks, steerings, and specs into your project workspace(s)
+- `pre-flight-fde.sh` — Checks your tools (git, node, python, docker), collects credentials interactively, writes a local manifest for downstream scripts
+- `validate-deploy-fde.sh` — Validates API access to your project board (GitHub Projects, GitLab, or Asana)
+- `code-factory-setup.sh` — Installs the factory configuration into your project workspace(s)
 
 **Requirements:** Git, Node.js, Python 3.10+, a GitHub/GitLab token. Docker and AWS are optional.
+
+**IDE:** Works with any AI-assisted IDE — Kiro, Cursor, VS Code + Copilot, Cline, Claude Code, or Q Developer. The factory exports its rules to all 6 platforms automatically (see `.cursor/`, `.claude/`, `.amazonq/`, `.clinerules/` directories).
 
 Scripts operate as linters — they report all issues with fix instructions and never hard-break. Cloud deployment (AWS) is opt-in and defaults to "no".
 
