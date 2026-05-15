@@ -73,6 +73,8 @@ DEPTH_THRESHOLD_DISTRIBUTED = float(os.environ.get("DEPTH_THRESHOLD", "0.5"))
 
 # Feature flag: disable cognitive routing (falls back to READY status, monolith handles)
 COGNITIVE_ROUTING_ENABLED = os.environ.get("COGNITIVE_ROUTING_ENABLED", "true").lower() == "true"
+ECR_REPOSITORY = os.environ.get("ECR_REPOSITORY", "")
+ORCHESTRATOR_IMAGE_TAG = os.environ.get("ORCHESTRATOR_IMAGE_TAG", "orchestrator-latest")
 
 
 # ─── Handler ─────────────────────────────────────────────────────
@@ -146,7 +148,25 @@ def handler(event, context):
 
     # ─── Emit dispatch event (non-blocking) ──────────────────────
     if COGNITIVE_ROUTING_ENABLED and task["status"] == "DISPATCHED":
-        _emit_dispatch_event(task, depth_result, target_mode)
+        # Pre-flight: validate dispatch readiness before emitting event
+        block_reason = _validate_dispatch_readiness(target_mode)
+        if block_reason:
+            # Mark task as BLOCKED — don't dispatch to a dead end
+            table.update_item(
+                Key={"task_id": task["task_id"]},
+                UpdateExpression="SET #s = :s, #e = :e, updated_at = :t",
+                ExpressionAttributeNames={"#s": "status", "#e": "error"},
+                ExpressionAttributeValues={
+                    ":s": "BLOCKED",
+                    ":e": f"dispatch_preflight_failed: {block_reason}",
+                    ":t": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            task["status"] = "BLOCKED"
+            logger.warning("Task BLOCKED (dispatch pre-flight failed): %s — %s",
+                           task["task_id"], block_reason)
+        else:
+            _emit_dispatch_event(task, depth_result, target_mode)
 
     elapsed_ms = int((time.time() - start_time) * 1000)
     logger.info(
@@ -423,6 +443,37 @@ def _fetch_metrics_signals(repo: str) -> dict:
 
 
 # ─── Dispatch Event Emission ─────────────────────────────────────
+
+def _validate_dispatch_readiness(target_mode: str) -> str | None:
+    """Pre-flight validation before dispatching to ECS.
+
+    Checks:
+    1. For distributed mode: ECR image exists for the orchestrator
+    2. ECR_REPOSITORY env var is configured
+
+    Returns None if ready, or a human-readable block reason string.
+    This prevents silent dispatch failures (5 Whys root cause: missing image).
+    """
+    if target_mode != "distributed":
+        return None  # Monolith mode doesn't need ECR validation
+
+    if not ECR_REPOSITORY:
+        return "ECR_REPOSITORY env var not configured — cannot validate image"
+
+    try:
+        ecr = boto3.client("ecr", region_name=AWS_REGION)
+        ecr.describe_images(
+            repositoryName=ECR_REPOSITORY,
+            imageIds=[{"imageTag": ORCHESTRATOR_IMAGE_TAG}],
+        )
+        return None  # Image exists — ready to dispatch
+    except ecr.exceptions.ImageNotFoundException:
+        return f"ECR image '{ECR_REPOSITORY}:{ORCHESTRATOR_IMAGE_TAG}' not found — push image before dispatching"
+    except Exception as e:
+        # Don't block on transient ECR API errors — let dispatch proceed
+        logger.warning("ECR pre-flight check failed (non-blocking): %s", str(e))
+        return None
+
 
 def _emit_dispatch_event(task: dict, depth_result: dict, target_mode: str) -> None:
     """Emit fde.internal/task.dispatched event to EventBridge.

@@ -53,6 +53,8 @@ resource "aws_lambda_function" "webhook_ingest" {
       AWS_REGION_NAME           = var.aws_region
       DEPTH_THRESHOLD           = "0.5"
       COGNITIVE_ROUTING_ENABLED = "true"
+      ECR_REPOSITORY            = aws_ecr_repository.strands_agent.name
+      ORCHESTRATOR_IMAGE_TAG    = "orchestrator-latest"
     }
   }
 
@@ -112,6 +114,12 @@ resource "aws_iam_role_policy" "webhook_ingest_policy" {
         Effect   = "Allow"
         Action   = ["events:PutEvents"]
         Resource = [aws_cloudwatch_event_bus.factory.arn]
+      },
+      {
+        Sid      = "ECRPreFlightValidation"
+        Effect   = "Allow"
+        Action   = ["ecr:DescribeImages"]
+        Resource = [aws_ecr_repository.strands_agent.arn]
       },
       {
         Sid      = "CloudWatchLogs"
