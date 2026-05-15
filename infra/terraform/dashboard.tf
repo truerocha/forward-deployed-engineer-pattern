@@ -78,6 +78,12 @@ resource "aws_iam_role_policy" "dashboard_status_policy" {
         ]
       },
       {
+        # Agent lifecycle reconciliation: mark stale/completed agents
+        Effect   = "Allow"
+        Action   = ["dynamodb:UpdateItem"]
+        Resource = [aws_dynamodb_table.agent_lifecycle.arn]
+      },
+      {
         Effect   = "Allow"
         Action   = ["ecs:DescribeTaskDefinition"]
         Resource = ["*"]

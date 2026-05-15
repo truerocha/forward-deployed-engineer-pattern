@@ -252,8 +252,9 @@ def _handle_tasks(event, context):
 
         # Agent capacity metrics
         total_agents = len(agents)
-        active_agents = sum(1 for a in agents if a.get("status") in ("RUNNING", "INITIALIZING", "CREATED"))
-        idle_agents = total_agents - active_agents
+        active_agents = sum(1 for a in agents if a.get("status") in ("RUNNING", "INITIALIZING"))
+        stale_agents = sum(1 for a in agents if a.get("status") == "CREATED" and _is_stale_agent(a))
+        idle_agents = total_agents - active_agents - stale_agents
 
         # Dispatch health: detect stuck tasks (DISPATCHED/READY > 5 min without execution start)
         dispatch_stuck_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
@@ -376,6 +377,7 @@ def _handle_tasks(event, context):
                 "total_agents_provisioned": total_agents,
                 "active_agents": active_agents,
                 "idle_agents": idle_agents,
+                "stale_agents": stale_agents,
                 "dispatch_stuck": len(dispatch_stuck),
                 "dispatch_stuck_task_ids": [t.get("task_id", "") for t in dispatch_stuck[:5]],
             },
@@ -726,16 +728,84 @@ def _handle_health(event, context):
 
 
 def _fetch_active_agents() -> list:
-    """Fetch agents from lifecycle table (last 24h)."""
+    """Fetch agents from lifecycle table (last 7 days) with reconciliation.
+
+    Reconciliation logic:
+    1. If agent is CREATED > 10 min and its task is COMPLETED/FAILED → mark agent COMPLETED/FAILED
+    2. If agent is CREATED > 10 min and no corresponding ECS task running → mark STALE
+    3. Only agents with status RUNNING/INITIALIZING are truly "active"
+    """
     try:
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-        response = lifecycle_table.scan(
-            FilterExpression=Attr("created_at").gte(cutoff),
-            Limit=50,
-        )
-        return response.get("Items", [])
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        items = []
+        scan_kwargs = {
+            "FilterExpression": Attr("created_at").gte(cutoff),
+        }
+        while True:
+            response = lifecycle_table.scan(**scan_kwargs)
+            items.extend(response.get("Items", []))
+            if len(items) >= 100 or "LastEvaluatedKey" not in response:
+                break
+            scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+        # Reconcile: check if corresponding tasks have completed
+        stale_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        agents_to_update = []
+
+        for agent in items:
+            if agent.get("status") != "CREATED":
+                continue
+            if agent.get("created_at", "") >= stale_cutoff:
+                continue  # Too recent to judge
+
+            # Check if the task has a terminal status
+            task_id = agent.get("task_id", "")
+            if task_id:
+                try:
+                    task_item = task_table.get_item(Key={"task_id": task_id}).get("Item")
+                    if task_item:
+                        task_status = task_item.get("status", "")
+                        if task_status in ("COMPLETED", "FAILED", "DEAD_LETTER", "REWORK"):
+                            # Reconcile: agent should mirror task terminal status
+                            new_status = "COMPLETED" if task_status == "COMPLETED" else "FAILED"
+                            agents_to_update.append((agent, new_status))
+                        elif task_status in ("DISPATCHED", "PENDING", "READY"):
+                            # Task never started — agent is stale
+                            agents_to_update.append((agent, "STALE"))
+                except Exception:
+                    pass
+
+        # Batch update stale/reconciled agents (fire-and-forget, don't block response)
+        for agent, new_status in agents_to_update:
+            try:
+                lifecycle_table.update_item(
+                    Key={"agent_instance_id": agent["agent_instance_id"]},
+                    UpdateExpression="SET #s = :s, reconciled_at = :t",
+                    ExpressionAttributeNames={"#s": "status"},
+                    ExpressionAttributeValues={
+                        ":s": new_status,
+                        ":t": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+                agent["status"] = new_status  # Update in-memory for this response
+            except Exception:
+                pass
+
+        return items
     except Exception:
         return []
+
+
+def _is_stale_agent(agent: dict) -> bool:
+    """An agent is stale if it's been in CREATED status for > 10 minutes."""
+    created_at = agent.get("created_at", "")
+    if not created_at:
+        return True
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        return (datetime.now(timezone.utc) - created).total_seconds() > 600
+    except (ValueError, TypeError):
+        return True
 
 
 def _build_agent_summary(agents: list) -> list:
