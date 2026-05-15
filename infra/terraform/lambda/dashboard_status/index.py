@@ -215,15 +215,24 @@ def _handle_tasks(event, context):
         # Extract repo filter from query parameters
         params = event.get("queryStringParameters") or {}
         repo_filter = params.get("repo", "")
+        days_back = int(params.get("days", "7"))  # Default 7 days of history
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
 
-        # Fetch tasks from last 24h
-        task_response = task_table.scan(
-            FilterExpression=Attr("created_at").gte(cutoff),
-            Limit=50,
-        )
-        items = task_response.get("Items", [])
+        # Fetch tasks — use paginated scan to avoid Limit truncation
+        # DDB Limit applies BEFORE FilterExpression, so Limit=50 could miss items.
+        # Paginate to get all items within the time window.
+        items = []
+        scan_kwargs = {
+            "FilterExpression": Attr("created_at").gte(cutoff),
+        }
+        while True:
+            task_response = task_table.scan(**scan_kwargs)
+            items.extend(task_response.get("Items", []))
+            # Stop if we have enough or no more pages
+            if len(items) >= 100 or "LastEvaluatedKey" not in task_response:
+                break
+            scan_kwargs["ExclusiveStartKey"] = task_response["LastEvaluatedKey"]
 
         # Apply repo filter if specified
         if repo_filter:
@@ -233,10 +242,11 @@ def _handle_tasks(event, context):
         agents = _fetch_active_agents()
         agent_by_task = {a.get("task_id", ""): a for a in agents if a.get("task_id")}
 
-        # Compute metrics
+        # Compute metrics (24h window for rate metrics, full window for task list)
+        cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         active = sum(1 for i in items if i.get("status") in ("RUNNING", "PENDING", "READY", "IN_PROGRESS", "DISPATCHED"))
-        completed = sum(1 for i in items if i.get("status") == "COMPLETED")
-        failed = sum(1 for i in items if i.get("status") in ("FAILED", "DEAD_LETTER"))
+        completed = sum(1 for i in items if i.get("status") == "COMPLETED" and i.get("updated_at", "") >= cutoff_24h)
+        failed = sum(1 for i in items if i.get("status") in ("FAILED", "DEAD_LETTER") and i.get("updated_at", "") >= cutoff_24h)
         durations = [int(i.get("duration_ms", 0)) for i in items if i.get("duration_ms")]
         avg_duration = int(sum(durations) / len(durations)) if durations else 0
 
@@ -244,6 +254,15 @@ def _handle_tasks(event, context):
         total_agents = len(agents)
         active_agents = sum(1 for a in agents if a.get("status") in ("RUNNING", "INITIALIZING", "CREATED"))
         idle_agents = total_agents - active_agents
+
+        # Dispatch health: detect stuck tasks (DISPATCHED/READY > 5 min without execution start)
+        dispatch_stuck_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        dispatch_stuck = [
+            i for i in items
+            if i.get("status") in ("DISPATCHED", "READY")
+            and i.get("created_at", "") < dispatch_stuck_cutoff
+            and not i.get("started_at")
+        ]
 
         # Build enriched task list with agent assignment
         tasks = []
@@ -357,6 +376,8 @@ def _handle_tasks(event, context):
                 "total_agents_provisioned": total_agents,
                 "active_agents": active_agents,
                 "idle_agents": idle_agents,
+                "dispatch_stuck": len(dispatch_stuck),
+                "dispatch_stuck_task_ids": [t.get("task_id", "") for t in dispatch_stuck[:5]],
             },
             "dora": _compute_dora_summary(items),
             "tasks": deduplicated_tasks[:20],
