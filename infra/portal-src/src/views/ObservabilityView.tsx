@@ -31,6 +31,7 @@ import { QualityGateCard } from '../components/QualityGateCard';
 import { PipelineHealthCard } from '../components/PipelineHealthCard';
 import { EvidenceConfidenceCard } from '../components/EvidenceConfidenceCard';
 import { GoldenSignalsCard } from '../components/GoldenSignalsCard';
+import CapacityCard from '../components/CapacityCard';
 import {
   mapDoraMetrics,
   mapCostMetrics,
@@ -49,9 +50,9 @@ interface ObservabilityViewProps {
 const PERSONA_CARDS: Record<string, string[]> = {
   PM: ['ValueStreamCard', 'CostCard', 'TrustCard', 'NetFrictionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
   SWE: ['LiveTimeline', 'GateFeedbackCard', 'SquadExecutionCard', 'BranchEvaluationCard', 'HumanInputCard', 'ConductorPlanCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'QualityGateCard'],
-  SRE: ['GoldenSignalsCard', 'DataQualityCard', 'GateHistoryCard', 'CostCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'PipelineHealthCard'],
+  SRE: ['GoldenSignalsCard', 'CapacityCard', 'DataQualityCard', 'GateHistoryCard', 'CostCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'PipelineHealthCard'],
   Architect: ['MaturityRadar', 'BrainSimCard', 'ConductorPlanCard', 'ValueStreamCard', 'DataQualityCard', 'NetFrictionCard', 'EvidenceConfidenceCard'],
-  Staff: ['MaturityRadar', 'TrustCard', 'CostCard', 'BrainSimCard', 'ValueStreamCard', 'SquadExecutionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'QualityGateCard', 'PipelineHealthCard', 'EvidenceConfidenceCard'],
+  Staff: ['MaturityRadar', 'TrustCard', 'CostCard', 'BrainSimCard', 'ValueStreamCard', 'SquadExecutionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'QualityGateCard', 'PipelineHealthCard', 'EvidenceConfidenceCard', 'CapacityCard'],
 };
 
 export const ObservabilityView: React.FC<ObservabilityViewProps> = ({
@@ -84,6 +85,7 @@ export const ObservabilityView: React.FC<ObservabilityViewProps> = ({
     PipelineHealthCard: <PipelineHealthCard />,
     EvidenceConfidenceCard: <EvidenceConfidenceCard />,
     GoldenSignalsCard: <GoldenSignalsCard metrics={factoryData?.metrics ? { ...factoryData.metrics, dora: factoryData.dora } : null} health={null} />,
+    CapacityCard: <CapacityCard />,
   };
 
   /** Determine if a card has data worth showing (suppress empty states) */
@@ -110,6 +112,7 @@ export const ObservabilityView: React.FC<ObservabilityViewProps> = ({
       // Cost card always shows if there's any cost data
       case 'CostCard': return !!(mapCostMetrics(factoryData));
       case 'GoldenSignalsCard': return !!(factoryData?.metrics && factoryData?.dora);
+      case 'CapacityCard': return true; // Self-fetching, always render
       default: return true;
     }
   };

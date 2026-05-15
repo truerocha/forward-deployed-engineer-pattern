@@ -53,11 +53,13 @@ PIPELINE_STAGES = [
 
 
 def handler(event, context):
-    """Lambda handler — routes to /status/tasks, /status/tasks/{id}/reasoning, /status/metrics, or /status/health."""
+    """Lambda handler — routes to /status/tasks, /status/tasks/{id}/reasoning, /status/metrics, /status/capacity, or /status/health."""
     path = event.get("rawPath", event.get("path", "/status/tasks"))
 
     if "/status/health" in path:
         return _handle_health(event, context)
+    if "/status/capacity" in path:
+        return _handle_capacity(event, context)
     if "/status/registries" in path:
         return _handle_registries(event, context)
     if "/status/metrics" in path:
@@ -1093,6 +1095,152 @@ def _compute_review_feedback_metrics(project_id: str) -> dict | None:
 
     except Exception:
         return None
+
+
+def _handle_capacity(event, context):
+    """GET /status/capacity — Concurrency utilization, queue depth, and reaper health.
+
+    Provides the SRE persona with real-time visibility into:
+      1. Per-repo concurrency slots (used vs max)
+      2. Queue depth (tasks waiting for a slot)
+      3. Reaper health (last invocation, corrections)
+      4. ECS running task count
+    """
+    try:
+        ecs = boto3.client("ecs", region_name=REGION)
+        logs = boto3.client("logs", region_name=REGION)
+        lambda_client = boto3.client("lambda", region_name=REGION)
+
+        # 1. Concurrency: read all COUNTER# items and CONFIG#max_concurrent_tasks
+        counter_items = task_table.scan(
+            FilterExpression=Attr("task_id").begins_with("COUNTER#"),
+        ).get("Items", [])
+
+        max_concurrent_item = task_table.get_item(
+            Key={"task_id": "CONFIG#max_concurrent_tasks"}
+        ).get("Item", {})
+        max_concurrent = int(max_concurrent_item.get("value", "3"))
+
+        repos = []
+        for item in counter_items:
+            repo = item.get("task_id", "").replace("COUNTER#", "")
+            active_count = int(item.get("active_count", 0))
+            repos.append({
+                "repo": repo,
+                "active": active_count,
+                "max": max_concurrent,
+                "utilization_pct": int((active_count / max_concurrent) * 100) if max_concurrent > 0 else 0,
+                "saturated": active_count >= max_concurrent,
+            })
+
+        # 2. Queue depth: tasks in READY status with current_stage = "ingested"
+        ready_items = task_table.query(
+            IndexName="status-created-index",
+            KeyConditionExpression=Key("status").eq("READY"),
+        ).get("Items", [])
+
+        queued_tasks = [
+            t for t in ready_items
+            if t.get("current_stage") == "ingested" and not t.get("task_id", "").startswith("CONFIG#")
+        ]
+
+        queue_by_repo = {}
+        for t in queued_tasks:
+            repo = t.get("repo", "unknown")
+            queue_by_repo[repo] = queue_by_repo.get(repo, 0) + 1
+
+        # 3. ECS running tasks
+        ecs_tasks = []
+        try:
+            task_arns = ecs.list_tasks(
+                cluster="fde-dev-cluster", desiredStatus="RUNNING"
+            ).get("taskArns", [])
+
+            if task_arns:
+                described = ecs.describe_tasks(
+                    cluster="fde-dev-cluster", tasks=task_arns
+                ).get("tasks", [])
+                for t in described:
+                    ecs_tasks.append({
+                        "task_arn": t.get("taskArn", "").split("/")[-1],
+                        "status": t.get("lastStatus", ""),
+                        "cpu": t.get("cpu", ""),
+                        "memory": t.get("memory", ""),
+                        "started_at": t.get("startedAt", ""),
+                        "group": t.get("group", ""),
+                    })
+        except Exception:
+            pass
+
+        # 4. Reaper health: last invocation from CloudWatch Logs
+        reaper_status = {"status": "unknown", "last_invocation": None, "last_result": None}
+        try:
+            log_events = logs.filter_log_events(
+                logGroupName="/aws/lambda/fde-dev-reaper",
+                limit=10,
+                interleaved=True,
+            ).get("events", [])
+
+            if log_events:
+                reaper_status["status"] = "healthy"
+                reaper_status["last_invocation"] = datetime.fromtimestamp(
+                    log_events[-1]["timestamp"] / 1000, tz=timezone.utc
+                ).isoformat()
+
+                for ev in reversed(log_events):
+                    msg = ev.get("message", "")
+                    if "no stuck tasks or counter drift" in msg:
+                        reaper_status["last_result"] = "clean"
+                        break
+                    elif "Counter drift" in msg:
+                        reaper_status["last_result"] = "drift_corrected"
+                        break
+                    elif "Reaped" in msg:
+                        reaper_status["last_result"] = "tasks_reaped"
+                        break
+            else:
+                reaper_status["status"] = "never_invoked"
+        except Exception as e:
+            if "ResourceNotFoundException" in str(e):
+                reaper_status["status"] = "not_deployed"
+            else:
+                reaper_status["status"] = "error"
+
+        # 5. Reaper Lambda metadata
+        try:
+            fn_config = lambda_client.get_function_configuration(
+                FunctionName="fde-dev-reaper"
+            )
+            reaper_status["memory_mb"] = fn_config.get("MemorySize", 0)
+            reaper_status["timeout_s"] = fn_config.get("Timeout", 0)
+            reaper_status["last_modified"] = fn_config.get("LastModified", "")
+        except Exception:
+            pass
+
+        body = {
+            "concurrency": {
+                "max_per_repo": max_concurrent,
+                "repos": repos,
+                "total_active": sum(r["active"] for r in repos),
+                "total_capacity": max_concurrent * max(len(repos), 1),
+            },
+            "queue": {
+                "total_queued": len(queued_tasks),
+                "by_repo": queue_by_repo,
+                "queued_task_ids": [t.get("task_id", "") for t in queued_tasks[:10]],
+            },
+            "ecs": {
+                "running_tasks": len(ecs_tasks),
+                "tasks": ecs_tasks,
+            },
+            "reaper": reaper_status,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return _response(200, body)
+
+    except Exception as e:
+        return _response(500, {"error": "Internal server error"})
 
 
 def _response(status_code: int, body: dict) -> dict:

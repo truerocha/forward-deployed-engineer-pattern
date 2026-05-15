@@ -109,3 +109,43 @@ export async function fetchHealth(): Promise<{ status: string; checks: { name: s
 }
 
 
+
+export interface CapacityData {
+  concurrency: {
+    max_per_repo: number;
+    repos: { repo: string; active: number; max: number; utilization_pct: number; saturated: boolean }[];
+    total_active: number;
+    total_capacity: number;
+  };
+  queue: {
+    total_queued: number;
+    by_repo: Record<string, number>;
+    queued_task_ids: string[];
+  };
+  ecs: {
+    running_tasks: number;
+    tasks: { task_arn: string; status: string; cpu: string; memory: string; started_at: string; group: string }[];
+  };
+  reaper: {
+    status: string;
+    last_invocation: string | null;
+    last_result: string | null;
+    memory_mb?: number;
+    timeout_s?: number;
+    last_modified?: string;
+  };
+  timestamp: string;
+}
+
+export async function fetchCapacity(): Promise<CapacityData | null> {
+  const api = getApiUrl();
+  if (!api) return null;
+
+  try {
+    const r = await fetch(`${api}/status/capacity`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
