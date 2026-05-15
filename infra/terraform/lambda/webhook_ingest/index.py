@@ -588,17 +588,50 @@ def _ingest_asana(detail: dict) -> dict | None:
 # ─── Helper Functions ────────────────────────────────────────────
 
 def _create_agent_record(task: dict) -> None:
-    """Create a provisional agent lifecycle record for dashboard visibility."""
+    """Create a provisional agent lifecycle record for dashboard visibility.
+
+    Agent name is derived from the task context:
+    - target_mode: distributed → 'orchestrator', monolith → 'monolith-agent'
+    - depth >= 0.7 → 'deep-orchestrator' (full squad)
+    - depth >= 0.4 → 'standard-orchestrator' (partial squad)
+    - depth < 0.4 → 'fast-agent' (single agent, no squad)
+
+    The name is provisional — the actual ECS container may override it
+    once the Conductor assigns specific roles. But this gives the portal
+    a meaningful label from the moment the task is ingested.
+    """
     try:
         lifecycle_table = dynamodb.Table(AGENT_LIFECYCLE_TABLE)
         now = datetime.now(timezone.utc).isoformat()
         instance_id = f"AGENT-{uuid.uuid4().hex[:8]}"
 
+        # Derive agent role from task context
+        target_mode = task.get("target_mode", "monolith")
+        depth = float(task.get("depth", 0.5))
+
+        if target_mode == "distributed":
+            if depth >= 0.7:
+                agent_name = "deep-orchestrator"
+            elif depth >= 0.4:
+                agent_name = "standard-orchestrator"
+            else:
+                agent_name = "fast-orchestrator"
+        else:
+            if depth >= 0.7:
+                agent_name = "deep-agent"
+            elif depth >= 0.4:
+                agent_name = "standard-agent"
+            else:
+                agent_name = "fast-agent"
+
         lifecycle_table.put_item(Item={
             "agent_instance_id": instance_id,
-            "agent_name": "fde-pipeline",
+            "agent_name": agent_name,
             "task_id": task["task_id"],
+            "task_title": task.get("title", "")[:100],
             "model_id": "pending-assignment",
+            "target_mode": target_mode,
+            "depth": str(depth),
             "prompt_version": 0,
             "prompt_hash": "",
             "status": "CREATED",

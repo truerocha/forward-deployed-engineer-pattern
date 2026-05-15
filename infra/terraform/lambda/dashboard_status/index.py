@@ -809,16 +809,39 @@ def _is_stale_agent(agent: dict) -> bool:
 
 
 def _build_agent_summary(agents: list) -> list:
-    """Build agent summary for the dashboard sidebar."""
+    """Build agent summary for the dashboard, separated into live vs historical.
+
+    Returns a list with a 'category' field:
+    - 'live': RUNNING or INITIALIZING (actually executing)
+    - 'recent': CREATED < 10 min (just dispatched, waiting to start)
+    - 'historical': COMPLETED, FAILED, STALE (past executions)
+
+    Portal can use the category to render live agents prominently and
+    collapse historical ones into a separate section.
+    """
     summary = []
-    for agent in sorted(agents, key=lambda x: x.get("created_at", ""), reverse=True)[:10]:
+    for agent in sorted(agents, key=lambda x: x.get("created_at", ""), reverse=True)[:20]:
+        status = agent.get("status", "")
+
+        if status in ("RUNNING", "INITIALIZING"):
+            category = "live"
+        elif status == "CREATED" and not _is_stale_agent(agent):
+            category = "recent"
+        else:
+            category = "historical"
+
         summary.append({
             "instance_id": agent.get("agent_instance_id", ""),
-            "name": agent.get("agent_name", ""),
+            "name": agent.get("agent_name", "unknown"),
             "task_id": agent.get("task_id", ""),
-            "status": agent.get("status", ""),
+            "task_title": agent.get("task_title", ""),
+            "status": status,
+            "category": category,
+            "target_mode": agent.get("target_mode", ""),
+            "depth": agent.get("depth", ""),
             "started_at": agent.get("started_at", ""),
             "execution_time_ms": int(agent.get("execution_time_ms", 0)),
+            "created_at": agent.get("created_at", ""),
         })
     return summary
 
