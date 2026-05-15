@@ -24,7 +24,7 @@ We extend this with **persona-based filtering** — each role (PM, SWE, SRE, Arc
 ```
 TopNavigation (identity + utilities)
   AppLayout
-    SideNavigation (7 views + Observability)
+    SideNavigation (8 views + Observability)
     BreadcrumbGroup
     Content (view-specific)
 ```
@@ -38,6 +38,19 @@ TopNavigation (identity + utilities)
 | Layout | AppLayout | navigation, breadcrumbs, content, toolsHide, headerSelector |
 | Breadcrumbs | BreadcrumbGroup | items |
 | i18n wrapper | I18nProvider | locale, messages |
+
+### Navigation Items (RAIL)
+
+| # | Item | Hash | Description |
+|---|------|------|-------------|
+| 1 | Pipeline | #pipeline | Task execution and DAG view |
+| 2 | Agents | #agents | Squad status and agent activity |
+| 3 | Reasoning | #reasoning | Log streams and decision traces |
+| 4 | Quality | #quality | Gate results and evidence |
+| 5 | Maturity | #maturity | Capability radar and progression |
+| 6 | Value | #value | Value stream and delivery metrics |
+| 7 | Cost Breakdown | #cost | Infrastructure and execution cost analysis |
+| 8 | Observability | #observability | Persona-filtered dashboard cards |
 
 ### Navigation Pattern
 
@@ -137,7 +150,6 @@ The Observability view uses Cloudscape Tabs for persona selection:
 |------|:--:|:---:|:---:|:---------:|:-----:|
 | DORA Sun | x | | x | | x |
 | DORA Metrics | x | | x | | x |
-| Cost Breakdown | x | | x | | x |
 | Value Stream | x | | | x | x |
 | Trust Score | x | | | | x |
 | Net Friction | x | | | x | |
@@ -154,6 +166,50 @@ The Observability view uses Cloudscape Tabs for persona selection:
 | Quality Gate | | x | | | x |
 | Pipeline Health | | | x | | x |
 | Evidence Confidence | | | | x | x |
+
+---
+
+## Cost Breakdown View (#cost)
+
+The Cost Breakdown is a dedicated navigation view (not embedded in persona cards) providing infrastructure and execution cost analysis across all personas.
+
+### Layout
+
+```tsx
+<ContentLayout header={<Header variant="h1">Cost Breakdown</Header>}>
+  <Grid gridDefinition={[
+    { colspan: { l: 6, m: 6, default: 12 } },
+    { colspan: { l: 6, m: 6, default: 12 } },
+    { colspan: { l: 12, m: 12, default: 12 } },
+  ]}>
+    <Container header={<Header variant="h3">Execution Cost per Task</Header>}>
+      {/* ProgressBar per task showing budget consumption */}
+    </Container>
+    <Container header={<Header variant="h3">Infrastructure Spend</Header>}>
+      {/* KeyValuePairs: compute, storage, network, LLM tokens */}
+    </Container>
+    <Container header={<Header variant="h3">Cost Trend</Header>}>
+      {/* Sparkline or bar chart — daily/weekly cost over time */}
+    </Container>
+  </Grid>
+</ContentLayout>
+```
+
+### Content Cards
+
+| Card | Component | Description |
+|------|-----------|-------------|
+| Execution Cost per Task | ProgressBar + Table | Budget usage per pipeline task |
+| Infrastructure Spend | KeyValuePairs | Breakdown by compute, storage, network, LLM tokens |
+| Cost Trend | Inline SVG sparkline | Daily/weekly cost trajectory |
+| Cost Alerts | StatusIndicator | Threshold breaches and anomalies |
+
+### Rationale
+
+Cost Breakdown was previously embedded in persona cards (PM, SRE, Staff). It was promoted to a dedicated RAIL item because:
+- Cost data is relevant across multiple personas, making per-persona duplication redundant
+- The detail level needed (per-task, per-resource, trend) exceeds what fits in a single dashboard card
+- A dedicated view allows drill-down without cluttering the observability dashboard
 
 ---
 

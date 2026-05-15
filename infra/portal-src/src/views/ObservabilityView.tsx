@@ -10,7 +10,6 @@ import SpaceBetween from '@cloudscape-design/components/space-between';
 import Box from '@cloudscape-design/components/box';
 
 import { DoraCard } from '../components/DoraCard';
-import { CostCard } from '../components/CostCard';
 import { ValueStreamCard } from '../components/ValueStreamCard';
 import { MaturityRadar } from '../components/MaturityRadar';
 import { BrainSimCard } from '../components/BrainSimCard';
@@ -34,7 +33,6 @@ import { GoldenSignalsCard } from '../components/GoldenSignalsCard';
 import CapacityCard from '../components/CapacityCard';
 import {
   mapDoraMetrics,
-  mapCostMetrics,
   mapGateHistory,
   mapLiveTimeline,
   mapSquadExecution,
@@ -48,11 +46,11 @@ interface ObservabilityViewProps {
 
 /** Persona card visibility matrix */
 const PERSONA_CARDS: Record<string, string[]> = {
-  PM: ['ValueStreamCard', 'CostCard', 'TrustCard', 'NetFrictionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
+  PM: ['ValueStreamCard', 'TrustCard', 'NetFrictionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard'],
   SWE: ['LiveTimeline', 'GateFeedbackCard', 'SquadExecutionCard', 'BranchEvaluationCard', 'HumanInputCard', 'ConductorPlanCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'QualityGateCard'],
-  SRE: ['GoldenSignalsCard', 'CapacityCard', 'DataQualityCard', 'GateHistoryCard', 'CostCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'PipelineHealthCard'],
+  SRE: ['GoldenSignalsCard', 'CapacityCard', 'DataQualityCard', 'GateHistoryCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'PipelineHealthCard'],
   Architect: ['MaturityRadar', 'BrainSimCard', 'ConductorPlanCard', 'ValueStreamCard', 'DataQualityCard', 'NetFrictionCard', 'EvidenceConfidenceCard'],
-  Staff: ['MaturityRadar', 'TrustCard', 'CostCard', 'BrainSimCard', 'ValueStreamCard', 'SquadExecutionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'QualityGateCard', 'PipelineHealthCard', 'EvidenceConfidenceCard', 'CapacityCard'],
+  Staff: ['MaturityRadar', 'TrustCard', 'BrainSimCard', 'ValueStreamCard', 'SquadExecutionCard', 'ReviewFeedbackCard', 'CognitiveAutonomyCard', 'QualityGateCard', 'PipelineHealthCard', 'EvidenceConfidenceCard', 'CapacityCard'],
 };
 
 export const ObservabilityView: React.FC<ObservabilityViewProps> = ({
@@ -65,7 +63,6 @@ export const ObservabilityView: React.FC<ObservabilityViewProps> = ({
   const cardRegistry: Record<string, React.ReactNode> = {
     DoraSunCard: <DoraSunCard forecast={factoryData?.forecast} />,
     DoraCard: <DoraCard metrics={mapDoraMetrics(factoryData)} />,
-    CostCard: <CostCard summary={mapCostMetrics(factoryData)} />,
     ValueStreamCard: <ValueStreamCard />,
     MaturityRadar: <MaturityRadar />,
     BrainSimCard: <BrainSimCard />,
@@ -109,8 +106,6 @@ export const ObservabilityView: React.FC<ObservabilityViewProps> = ({
       case 'EvidenceConfidenceCard': return !!(factoryData?.metrics_data?.evidence_confidence);
       case 'PipelineHealthCard': return !!(factoryData?.metrics_data?.pipeline_health);
       case 'QualityGateCard': return !!(factoryData?.tasks?.some((t: any) => t.events?.some((e: any) => e.type === 'gate')));
-      // Cost card always shows if there's any cost data
-      case 'CostCard': return !!(mapCostMetrics(factoryData));
       case 'GoldenSignalsCard': return !!(factoryData?.metrics && factoryData?.dora);
       case 'CapacityCard': return true; // Self-fetching, always render
       default: return true;

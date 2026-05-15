@@ -31,6 +31,7 @@ import { GatesView } from './views/GatesView';
 import { HealthView } from './views/HealthView';
 import { RegistriesView } from './views/RegistriesView';
 import { ObservabilityView } from './views/ObservabilityView';
+import { CostBreakdownView } from './views/CostBreakdownView';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -139,7 +140,7 @@ export default function App() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '') as AppView;
-      if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'observability'].includes(hash)) {
+      if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'cost', 'observability'].includes(hash)) {
         setActiveView(hash);
       }
     };
@@ -181,6 +182,7 @@ export default function App() {
     { type: 'link', text: t('nav.health'), href: '#health' },
     { type: 'link', text: t('nav.catalog'), href: '#registries' },
     { type: 'divider' },
+    { type: 'link', text: 'Cost Breakdown', href: '#cost', info: <Badge color="grey">COST</Badge> },
     { type: 'link', text: 'Observability', href: '#observability', info: <Badge color="blue">METRICS</Badge> },
   ];
 
@@ -188,7 +190,7 @@ export default function App() {
     event.preventDefault();
     const href = event.detail.href || '';
     const view = href.replace('#', '') as AppView;
-    if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'observability'].includes(view)) {
+    if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'cost', 'observability'].includes(view)) {
       changeView(view);
     }
   };
@@ -216,6 +218,8 @@ export default function App() {
         return <HealthView factoryData={factoryData} apiStatus={apiStatus} />;
       case 'registries':
         return <RegistriesView />;
+      case 'cost':
+        return <CostBreakdownView factoryData={factoryData} />;
       case 'observability':
         return (
           <ObservabilityView
@@ -237,6 +241,7 @@ export default function App() {
     gates: t('nav.gates'),
     health: t('nav.health'),
     registries: t('nav.catalog'),
+    cost: 'Cost Breakdown',
     observability: 'Observability',
   };
 
