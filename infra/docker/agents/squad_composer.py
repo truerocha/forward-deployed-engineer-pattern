@@ -52,6 +52,7 @@ class SquadManifest:
     skip_groups: list[str] = field(default_factory=list)
     rationale: str = ""
     waf_pillars: list[str] = field(default_factory=list)
+    agent_modes: dict[str, str] = field(default_factory=dict)  # agent_role → mode hint (e.g., "debugger")
 
     def get_execution_order(self) -> list[list[str]]:
         """Resolve the execution order as a list of stages.
@@ -96,6 +97,7 @@ class SquadManifest:
             "skip_groups": self.skip_groups,
             "rationale": self.rationale,
             "waf_pillars": self.waf_pillars,
+            "agent_modes": self.agent_modes,
             "total_agents": len(self.get_all_agents()),
         }
 
@@ -120,7 +122,7 @@ AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
     "swe-code-context-agent": {"layer": "swe", "tools": "RECON_TOOLS", "model": "standard", "description": "Maps codebase: dependencies, call graphs, modules"},
     "swe-developer-agent": {"layer": "swe", "tools": "ENGINEERING_TOOLS", "model": "reasoning", "description": "Writes new code: features, implementations"},
     "swe-architect-agent": {"layer": "swe", "tools": "RECON_TOOLS", "model": "reasoning", "description": "Designs component structure, interfaces, data models"},
-    "swe-code-quality-agent": {"layer": "swe", "tools": "RECON_TOOLS", "model": "standard", "description": "Linting, coverage, code smells, DRY/SOLID"},
+    "swe-code-quality-agent": {"layer": "swe", "tools": "RECON_TOOLS", "model": "standard", "description": "Quality Mode: linting, coverage, SOLID. Debugger Mode: call-stack analysis, root-cause isolation, regression scope"},
     "swe-adversarial-agent": {"layer": "swe", "tools": "RECON_TOOLS", "model": "reasoning", "description": "Challenges implementation: edge cases, failures"},
     "swe-redteam-agent": {"layer": "swe", "tools": "RECON_TOOLS", "model": "reasoning", "description": "Attacks implementation: injection, escalation, leaks"},
     # Delivery Agents — Standard (git ops, docs)
@@ -218,15 +220,19 @@ def compose_default_squad(task_type: str, task_id: str, complexity: str = "mediu
     if task_type == "bugfix":
         groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = [], []
+        modes = {"swe-code-quality-agent": "debugger"}
     elif task_type == "documentation":
         groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-tech-writer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = [], []
+        modes = {}
     elif task_type == "refactoring":
         groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["fde-code-reasoning"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent", "swe-adversarial-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = ["quality"], []
+        modes = {}
     elif task_type == "infrastructure":
         groups = {"intake": ["swe-issue-code-reader-agent", "swe-code-context-agent"], "architecture": ["swe-architect-agent", "architect-standard-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-ops-agent", "code-sec-agent", "code-cost-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
         parallel, pillars = ["waf_review"], ["operational_excellence", "security", "cost_optimization"]
+        modes = {}
     else:  # feature
         if complexity == "low":
             groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
@@ -237,8 +243,9 @@ def compose_default_squad(task_type: str, task_id: str, complexity: str = "mediu
         else:  # medium
             groups = {"intake": ["swe-issue-code-reader-agent"], "implementation": ["swe-developer-agent"], "waf_review": ["code-sec-agent", "code-rel-agent"], "quality": ["swe-code-quality-agent"], "review": ["fde-pr-reviewer-agent"], "delivery": ["swe-tech-writer-agent", "swe-dtl-commiter-agent"], "reporting": ["reporting-agent"]}
             parallel, pillars = ["waf_review"], ["security", "reliability"]
+        modes = {}
 
-    return SquadManifest(task_id=task_id, complexity=complexity, groups=groups, parallel_groups=parallel, rationale=f"Default {task_type}/{complexity} squad", waf_pillars=pillars)
+    return SquadManifest(task_id=task_id, complexity=complexity, groups=groups, parallel_groups=parallel, rationale=f"Default {task_type}/{complexity} squad", waf_pillars=pillars, agent_modes=modes)
 
 
 def should_use_dynamic_squad() -> bool:

@@ -40,9 +40,24 @@ Replace the static 3-agent pipeline with a **dynamic Agentic Squad** composed at
 | `swe-code-context-agent` | Maps codebase dependencies |
 | `swe-developer-agent` | Writes new code |
 | `swe-architect-agent` | Designs components |
-| `swe-code-quality-agent` | Linting, coverage, SOLID |
+| `swe-code-quality-agent` | Linting, coverage, SOLID (Quality Mode) + root-cause debugging (Debugger Mode) |
 | `swe-adversarial-agent` | Challenges implementation |
 | `swe-redteam-agent` | Attacks implementation |
+
+#### Agent Mode System
+
+Agents can operate in multiple modes depending on task context. The `task-intake-eval-agent` sets mode hints in the Squad Manifest's `agent_modes` field, which the orchestrator injects into the SCD at task start.
+
+| Agent | Modes | Activation |
+|-------|-------|-----------|
+| `swe-code-quality-agent` | `quality` (default), `debugger` | `debugger` activates for bugfix tasks |
+
+**Debugger Mode** provides:
+- Call stack reconstruction (entry → fault trace)
+- State inspection points (expected vs actual at each frame)
+- 5 Whys fault isolation (root cause, not symptom)
+- Regression scope analysis (same bug class elsewhere?)
+- Fix validation contract (root cause + regression test + downstream check)
 
 ### Layer 4: Delivery Agents — 2 agents
 | Agent | Responsibility |

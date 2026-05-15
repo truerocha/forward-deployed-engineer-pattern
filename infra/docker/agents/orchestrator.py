@@ -637,7 +637,7 @@ class Orchestrator:
         from .tools import RECON_TOOLS, ENGINEERING_TOOLS, REPORTING_TOOLS
 
         # Create the Shared Context Document for this task
-        scd = create_squad_context(task_id)
+        scd = create_squad_context(task_id, agent_modes=manifest.agent_modes)
 
         # Get execution order from manifest
         stages = manifest.get_execution_order()

@@ -445,6 +445,7 @@ export interface AgentExecution {
   model_tier: string;
   stage: string;
   duration_seconds: number;
+  mode?: string;
 }
 
 /**
@@ -493,12 +494,25 @@ export function mapSquadExecution(data: DashboardData | null): AgentExecution[] 
 
   // Convert to AgentExecution array
   if (agentMap.size > 0) {
+    // Detect agent modes from task metadata (agent_modes field in manifest)
+    const taskModes: Record<string, string> = {};
+    for (const task of recentTasks) {
+      if ((task as any).agent_modes) {
+        Object.assign(taskModes, (task as any).agent_modes);
+      }
+      // Fallback: infer debugger mode from task type
+      if ((task as any).task_type === 'bugfix' || (task as any).type === 'bugfix') {
+        taskModes['swe-code-quality-agent'] = 'debugger';
+      }
+    }
+
     return Array.from(agentMap.entries()).map(([agentName, info]) => ({
       role: agentName,
       status: info.status,
       model_tier: inferModelTier(agentName),
       stage: info.stage,
       duration_seconds: 0, // Not available from events alone
+      mode: taskModes[agentName],
     }));
   }
 

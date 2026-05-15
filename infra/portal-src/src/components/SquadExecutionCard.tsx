@@ -17,6 +17,7 @@ interface AgentExecution {
   model_tier: string;
   stage: string;
   duration_seconds: number;
+  mode?: string;
 }
 
 interface SquadExecutionCardProps {
@@ -88,6 +89,7 @@ export const SquadExecutionCard: React.FC<SquadExecutionCardProps> = ({ agents }
               <SpaceBetween direction="horizontal" size="xs" alignItems="center">
                 <StatusIndicator type={mapAgentStatus(agent.status)}>{agent.role}</StatusIndicator>
                 <Badge color={getTierBadgeColor(agent.model_tier)}>{agent.model_tier}</Badge>
+                {agent.mode && <Badge color="blue">🔍 {agent.mode}</Badge>}
                 <Box fontSize="body-s" color="text-body-secondary">{formatDuration(agent.duration_seconds)}</Box>
               </SpaceBetween>
               <ProgressBar

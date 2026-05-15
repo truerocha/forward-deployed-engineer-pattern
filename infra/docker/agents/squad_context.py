@@ -222,8 +222,23 @@ class SquadContext:
         }
 
 
-def create_squad_context(task_id: str) -> SquadContext:
-    """Create a new Shared Context Document for a task."""
+def create_squad_context(task_id: str, agent_modes: dict[str, str] | None = None) -> SquadContext:
+    """Create a new Shared Context Document for a task.
+
+    Args:
+        task_id: The task being executed.
+        agent_modes: Optional dict of agent_role → mode hint (e.g., {"swe-code-quality-agent": "debugger"}).
+            When provided, mode hints are injected into the task_intake section so agents
+            can read their activation mode from the SCD.
+    """
     ctx = SquadContext(task_id=task_id)
-    logger.info("Created Squad Context for task %s", task_id)
+    if agent_modes:
+        mode_summary = "\n".join(f"- {agent}: mode={mode}" for agent, mode in agent_modes.items())
+        ctx.write_from_agent(
+            "task-intake-eval-agent",
+            f"## Agent Mode Assignments\n\n{mode_summary}\n\n"
+            "Agents listed above should activate their specified mode.\n"
+            "If your role appears with `mode=debugger`, activate Debugger Mode.\n"
+        )
+    logger.info("Created Squad Context for task %s (modes: %s)", task_id, agent_modes or "{}")
     return ctx
