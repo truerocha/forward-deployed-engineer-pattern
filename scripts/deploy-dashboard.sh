@@ -51,16 +51,13 @@ if [[ "$BUILD_FIRST" == "true" ]]; then
     echo "  ❌ Portal build failed"
     exit 1
   fi
-  # Sync build output to dashboard directory
-  rm -rf "$DASHBOARD_DIR/assets"
-  cp -r "$PORTAL_SRC/dist/assets" "$DASHBOARD_DIR/assets"
-  cp "$PORTAL_SRC/dist/index.html" "$DASHBOARD_DIR/index.html"
-  # Sync public assets (logos, images)
-  if [[ -d "$PORTAL_SRC/dist/img" ]]; then
-    rm -rf "$DASHBOARD_DIR/img"
-    cp -r "$PORTAL_SRC/dist/img" "$DASHBOARD_DIR/img"
-  fi
-  echo "  ✅ Portal built and synced to $DASHBOARD_DIR"
+  echo "  ✅ Portal built"
+fi
+
+# Always use dist/ directly if it exists (avoids stale $DASHBOARD_DIR problem)
+if [[ -d "$PORTAL_SRC/dist" && -f "$PORTAL_SRC/dist/index.html" ]]; then
+  DASHBOARD_DIR="$PORTAL_SRC/dist"
+  echo "  → Using fresh dist/ from $PORTAL_SRC/dist"
 fi
 
 # 1. Resolve values from Terraform outputs (no hardcoded IDs)
