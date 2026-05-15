@@ -11,8 +11,8 @@
   },
   "extensions": {
     "multi-platform-export": true,
-    "brown-field-elevation": false,
-    "ddd-design-phase": false
+    "brown-field-elevation": true,
+    "ddd-design-phase": true
   },
   "conductor": {
     "auto-design-threshold": 0.5
