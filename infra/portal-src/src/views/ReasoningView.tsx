@@ -94,6 +94,7 @@ export const ReasoningView: React.FC<ReasoningViewProps> = ({ logs }) => {
         </Box>
       }
       stickyHeader
+      stickyHeaderVerticalOffset={48}
       stripedRows
       enableKeyboardNavigation
     />

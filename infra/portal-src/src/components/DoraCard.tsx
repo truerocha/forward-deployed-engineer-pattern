@@ -103,34 +103,22 @@ export const DoraCard: React.FC<DoraCardProps> = ({ metrics, selectedLevel, onLe
 
         {/* Metrics grid */}
         {currentMetrics ? (
-          <ColumnLayout columns={2} variant="text-grid">
+          <ColumnLayout columns={4} variant="text-grid">
             <div>
               <Box variant="awsui-key-label">Lead Time</Box>
-              <SpaceBetween direction="horizontal" size="xs" alignItems="center">
-                <Box variant="awsui-value-large">{currentMetrics.lead_time_hours.toFixed(1)}h</Box>
-                <StatusIndicator type={getTrendIndicator(currentMetrics.trend, false)} />
-              </SpaceBetween>
+              <Box fontSize="heading-m">{currentMetrics.lead_time_hours.toFixed(1)}h</Box>
             </div>
             <div>
               <Box variant="awsui-key-label">Deploy Freq</Box>
-              <SpaceBetween direction="horizontal" size="xs" alignItems="center">
-                <Box variant="awsui-value-large">{currentMetrics.deploy_freq_per_day.toFixed(1)}/d</Box>
-                <StatusIndicator type={getTrendIndicator(currentMetrics.trend, true)} />
-              </SpaceBetween>
+              <Box fontSize="heading-m">{currentMetrics.deploy_freq_per_day.toFixed(1)}/d</Box>
             </div>
             <div>
               <Box variant="awsui-key-label">CFR</Box>
-              <SpaceBetween direction="horizontal" size="xs" alignItems="center">
-                <Box variant="awsui-value-large">{currentMetrics.change_failure_rate_pct.toFixed(1)}%</Box>
-                <StatusIndicator type={getTrendIndicator(currentMetrics.trend, false)} />
-              </SpaceBetween>
+              <Box fontSize="heading-m">{currentMetrics.change_failure_rate_pct.toFixed(1)}%</Box>
             </div>
             <div>
               <Box variant="awsui-key-label">MTTR</Box>
-              <SpaceBetween direction="horizontal" size="xs" alignItems="center">
-                <Box variant="awsui-value-large">{currentMetrics.mttr_hours.toFixed(1)}h</Box>
-                <StatusIndicator type={getTrendIndicator(currentMetrics.trend, false)} />
-              </SpaceBetween>
+              <Box fontSize="heading-m">{currentMetrics.mttr_hours.toFixed(1)}h</Box>
             </div>
           </ColumnLayout>
         ) : (
