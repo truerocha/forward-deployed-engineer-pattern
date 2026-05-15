@@ -141,6 +141,12 @@ resource "aws_apigatewayv2_route" "dashboard_reasoning" {
   target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
 }
 
+resource "aws_apigatewayv2_route" "dashboard_capacity" {
+  api_id    = aws_apigatewayv2_api.webhook.id
+  route_key = "GET /status/capacity"
+  target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
+}
+
 resource "aws_lambda_permission" "dashboard_status_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
