@@ -110,6 +110,9 @@ See `docs/architecture/reference-architecture.png` for the full AWS reference ar
 | Persona Portal UX | `infra/portal-src/src/components/PersonaFilteredCards.tsx` + `DoraSunCard.tsx` | Role-based card filtering (PM/SWE/SRE/Architect/Staff) + DORA Sun health pulse visualization |
 | IAM Validator | `scripts/validate-aws-iam.py` | Per-service AWS IAM permission checks |
 | Provision Script | `scripts/provision-workspace.sh` | Legacy manual onboarding (--global / --project) |
+| Reaper Lambda | `infra/terraform/modules/reaper/`, `infra/docker/agents/reaper_handler.py` | Scheduled self-healing: reaps stuck tasks every 5 minutes, releases concurrency slots, auto-retries early-stage failures |
+| Retry Utilities | `infra/docker/agents/retry_utils.py` | `@retry_with_backoff` decorator for critical DynamoDB operations (prevents DAG orphans) |
+| S3 Utilities | `infra/docker/agents/s3_utils.py` | Classified S3 writes: retriable (throttle, timeout) vs permanent (access denied), explicit failure semantics |
 
 ### Information Flow
 
@@ -160,6 +163,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 - ADR-031: Cloudscape UX Reformulation — AWS Design System Migration
 - ADR-032: Extension Opt-In System — Per-Project FDE Intensity
 - ADR-033: Brown-Field Elevation & DDD Design Phase
+- ADR-034: Knowledge Graph as FDE Reconnaissance Layer
 
 ## Testing Design
 
@@ -193,6 +197,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 3. How to measure ROI of the factory compared to traditional development
 4. When to promote `fde-doc-gardening` from `userTriggered` to `postTaskExecution` (COE-012 recurrence suggests now)
 5. ~~When to add predictive risk scoring before agent execution~~ — **Resolved**: Risk Inference Engine deployed at `src/core/risk/` (2026-05-12). Bayesian P(Failure|Context) with 16 signals (13 base + 3 SWE Synapse), sigmoid activation, SHAP-like explanations, and self-improving weights via gradient descent. SWE Synapses Engine at `src/core/synapses/` provides prescriptive design intelligence. See ADR-022, ADR-024.
+6. ~~How to prevent stuck tasks from permanently blocking concurrency slots~~ — **Resolved**: Scheduled Reaper Lambda deployed at `infra/terraform/modules/reaper/` (2026-05-15). CloudWatch Events triggers every 5 minutes. Self-heals stuck tasks, releases slots, auto-retries early-stage failures. See pipeline reliability fixes.
 
 ## References
 

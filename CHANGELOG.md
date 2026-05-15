@@ -8,6 +8,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased] — 2026-05-15
 
+### Added — Knowledge Graph Reconnaissance Layer (ADR-034)
+- `docs/adr/ADR-034-knowledge-graph-reconnaissance-layer.md` — Architecture decision for 7 features: typed DAG runner, knowledge graph MCP, staleness hooks, machine-readable DoD, compound review agents, tiered evidence resolution, process tracing.
+- `docs/design/typed-pipeline-dag-runner.md` — Design: replace linear orchestrator with Kahn's topological sort DAG.
+- `docs/design/tiered-evidence-resolution.md` — Design: 4-tier evidence resolution (Explicit → Composite → Inferred → Transitive).
+- `docs/design/pipeline-process-tracing.md` — Design: structured process traces with funnel validation.
+- `docs/design/adr034-portal-observability-cards.md` — Design: 3 new Cloudscape cards for Observability view.
+- `docs/operations/adr034-activation-guide.md` — Step-by-step activation and testing guide.
+- `.kiro/hooks/fde-graph-staleness.kiro.hook` — PostToolUse hook: detects when writes invalidate reconnaissance.
+- `.kiro/hooks/fde-graph-augmented-search.kiro.hook` — PreToolUse hook: suggests graph queries over file reading.
+- `.kiro/hooks/fde-compound-review.kiro.hook` — PostTaskExecution hook: 6 specialized review lenses.
+
+### Added — Portal Observability Cards
+- `infra/portal-src/src/components/QualityGateCard.tsx` — 7-dimension DoD pass/fail heatmap (SWE, Staff personas).
+- `infra/portal-src/src/components/PipelineHealthCard.tsx` — Process trace funnel + timing + anomaly detection (SRE, Staff).
+- `infra/portal-src/src/components/EvidenceConfidenceCard.tsx` — Tiered resolution breakdown with confidence badge (Architect, Staff).
+- `infra/portal-src/src/views/ObservabilityView.tsx` — Updated persona matrix: SWE+1, SRE+1, Architect+1, PM+0.
+
+### Added — Pipeline Reliability Fixes (Loose Ends #1-#5)
+- `infra/terraform/modules/reaper/main.tf` — Scheduled Lambda (5min CloudWatch rule) for stuck task self-healing.
+- `infra/docker/agents/reaper_handler.py` — Lambda handler: reap stuck tasks + retry queued tasks for freed repos.
+- `infra/docker/agents/retry_utils.py` — `@retry_with_backoff` decorator for critical DynamoDB operations.
+- `infra/docker/agents/s3_utils.py` — S3 write with failure classification (retriable vs permanent).
+- `infra/docker/agents/task_queue.py` — Added `complete_task_with_retry`, `fail_task_with_retry`, `persist_event_payload`, `get_event_payload`.
+- `infra/docker/agents/execution_plan.py` — Added `save_plan_to_dynamodb`, `load_plan_from_dynamodb` for cross-container resume.
+
+### Changed — DoD Gate Upgrade
+- `.kiro/hooks/fde-dod-gate.kiro.hook` — Upgraded from v2.0.0 to v3.0.0: 7-dimension machine-readable validation with explicit "Not Done" signals.
+
+### Changed — MCP Configuration
+- `.kiro/settings/mcp.json` — Added `code-intelligence` MCP server entry (disabled by default).
+
 ### Added — Extension Opt-In System (ADR-032)
 - `fde-profile.json` — Per-project FDE intensity configuration. Presets: minimal, standard, strict, custom. Gates and extensions individually toggleable. Backward compatible: missing file = all gates ON.
 - `scripts/validate_fde_profile.py` — Schema validation, preset consistency checks, extension dependency validation. Exit 0 = valid, exit 1 = errors, exit 2 = file not found (acceptable default).

@@ -151,6 +151,9 @@ The Observability view uses Cloudscape Tabs for persona selection:
 | Maturity Radar | | | | x | x |
 | Brain Simulation | | | | x | x |
 | Conductor Plan | | x | | x | |
+| Quality Gate | | x | | | x |
+| Pipeline Health | | | x | | x |
+| Evidence Confidence | | | | x | x |
 
 ---
 
