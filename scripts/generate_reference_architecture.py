@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """Generate AWS Reference Architecture — Autonomous Code Factory.
 
-Adversarial-reviewed version. Fixes applied:
-  - No hardcoded Github icon (system is multi-platform: GitHub/Asana/GitLab)
-  - Cluster labels kept to 2 lines max (readable at normal zoom)
-  - Narrative moved to edge labels (visible on the flow path)
-  - Platform-neutral icons: Git (VCS), User (engineer), Codepipeline (delivery)
+Updated 2026-05-15 to reflect:
+  - ADR-029: Cognitive Autonomy (depth-calibrated squad composition)
+  - ADR-030: Cognitive Router (dual-path EventBridge routing)
+  - ADR-032: Extension Opt-In System (fde-profile.json)
+  - ADR-033: Design Phase Injector (brown-field elevation + DDD)
+  - ADR-027: ICRL Feedback Loop (review → learning → rework)
+  - ADR-031: Cloudscape Portal (observability dashboard)
 
 ILR Pre-Generation:
-  Spine: Engineer → ALM → API GW → EventBridge → ECS → Bedrock → S3 → Delivery → Engineer
-  Branches: ECS→DynamoDB, DynamoDB→Lambda, S3→CloudFront, ECS→CloudWatch
+  Spine: Engineer → ALM → API GW → EventBridge → Cognitive Router → ECS → Bedrock → S3 → Delivery → Engineer
+  Branches: ECS→DynamoDB, DynamoDB→Lambda, S3→CloudFront, ECS→CloudWatch, Lambda→ECS(rework)
+  New nodes: Cognitive Router (between EB and ECS), Lambda(Review Feedback)
   Fan-out: ECS=3 (Bedrock, DynamoDB, CloudWatch) ✓
-  Convergence: ECS=2 incoming (EventBridge, Lambda) — weight-managed
+  Convergence: ECS=2 incoming (Router, Lambda) — weight-managed
 """
 from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import Fargate, Lambda
 from diagrams.aws.database import Dynamodb
-from diagrams.aws.integration import Eventbridge
+from diagrams.aws.integration import Eventbridge, StepFunctions
 from diagrams.aws.ml import Bedrock
 from diagrams.aws.network import APIGateway, CloudFront
 from diagrams.aws.security import SecretsManager
@@ -88,14 +91,14 @@ with Diagram(
         },
     ):
 
-        # Ingestion
-        with Cluster("Ingestion", graph_attr=cl("#fef7e0", "#f9a825", "#f57f17")):
+        # Ingestion + Routing
+        with Cluster("Ingestion + Routing\nCognitive Router (ADR-030)", graph_attr=cl("#fef7e0", "#f9a825", "#f57f17")):
             apigw = APIGateway("API Gateway\nWebhook Receiver")
             eb = Eventbridge("EventBridge\nFactory Bus")
 
-        # Compute (VPC)
-        with Cluster("Compute — VPC", graph_attr=cl("#fce4ec", "#e53935", "#b71c1c")):
-            ecs = Fargate("ECS Fargate\nStrands Agent")
+        # Compute (VPC) — includes Design Phase Injector
+        with Cluster("Compute — VPC\nDesign Phase Injector (ADR-033)", graph_attr=cl("#fce4ec", "#e53935", "#b71c1c")):
+            ecs = Fargate("ECS Fargate\nConductor + Agents")
 
         # AI/ML
         with Cluster("AI/ML", graph_attr=cl("#e8f5e9", "#01A88D", "#015c5c")):
@@ -105,22 +108,22 @@ with Diagram(
         with Cluster("Storage", graph_attr=cl("#e8f5e9", "#7AA116", "#3d5c0a")):
             s3 = S3("S3 Artifacts\nKMS · Versioned")
 
-        # State
-        with Cluster("State + Security", graph_attr=cl("#f3e5f5", "#C925D1", "#6a1570")):
-            ddb = Dynamodb("DynamoDB\n4 Tables")
+        # State + ICRL
+        with Cluster("State + ICRL\nEpisode Store (ADR-027)", graph_attr=cl("#f3e5f5", "#C925D1", "#6a1570")):
+            ddb = Dynamodb("DynamoDB\n5 Tables + ICRL")
             secrets = SecretsManager("Secrets Mgr\nALM Tokens")
 
-        # DAG Parallelism
-        with Cluster("DAG Parallelism", graph_attr=cl("#fce4ec", "#e53935", "#b71c1c")):
-            dag_fn = Lambda("Lambda\nFan-Out")
+        # Review Feedback Loop
+        with Cluster("Review Feedback\nCircuit Breaker (ADR-027)", graph_attr=cl("#fce4ec", "#e53935", "#b71c1c")):
+            review_fn = Lambda("Lambda\nReview Classifier")
 
         # Observability
-        with Cluster("Observability", graph_attr=cl("#fff3e0", "#ef6c00", "#e65100")):
-            cw = Cloudwatch("CloudWatch\n6 Alarms · SNS")
+        with Cluster("Observability\nCloudscape Portal (ADR-031)", graph_attr=cl("#fff3e0", "#ef6c00", "#e65100")):
+            cw = Cloudwatch("CloudWatch\n6 Alarms · X-Ray")
 
         # Delivery
         with Cluster("Delivery", graph_attr=cl("#e8f5e9", "#43a047", "#2e7d32")):
-            cf = CloudFront("CloudFront\nDashboard")
+            cf = CloudFront("CloudFront\nDashboard + Portal")
             delivery = Codepipeline("Ship-Ready PR\nvia MCP")
 
     # ═══ MAIN FLOW — numbered spine (bold, weight=10) ═══
@@ -141,12 +144,12 @@ with Diagram(
     ) >> eb
 
     eb >> Edge(
-        label="④ RunTask (FDE protocol)",
+        label="④ Cognitive Router → RunTask",
         color="#e53935", style="bold", weight="10",
     ) >> ecs
 
     ecs >> Edge(
-        label="⑤ InvokeModel (3 phases)",
+        label="⑤ InvokeModel (design + code)",
         color="#01A88D", style="bold", weight="10",
     ) >> bedrock
 
@@ -168,7 +171,7 @@ with Diagram(
     # ═══ AUXILIARY FLOWS — branches (dashed, weight=1) ═══
 
     ecs >> Edge(
-        label="Task state + DORA",
+        label="Task state + DORA + ICRL",
         color="#C925D1", style="dashed", weight="1",
     ) >> ddb
 
@@ -177,18 +180,19 @@ with Diagram(
         color="#C925D1", style="dashed", weight="1",
     ) >> ecs
 
-    ddb >> Edge(
-        label="Streams → READY",
+    # Review Feedback Loop (ADR-027)
+    alm >> Edge(
+        label="PR review event",
         color="#e53935", style="dashed", weight="1",
-    ) >> dag_fn
+    ) >> review_fn
 
-    dag_fn >> Edge(
-        label="Parallel RunTask",
+    review_fn >> Edge(
+        label="Rework → RunTask",
         color="#e53935", style="dashed", weight="1",
     ) >> ecs
 
     ecs >> Edge(
-        label="Metrics + Logs",
+        label="Metrics + Traces",
         color="#ef6c00", style="dashed", weight="1",
     ) >> cw
 
@@ -198,7 +202,7 @@ with Diagram(
     ) >> cf
 
     cf >> Edge(
-        label="Factory health",
+        label="Cloudscape Portal",
         color="#43a047", style="dashed", weight="1",
     ) >> engineer
 
