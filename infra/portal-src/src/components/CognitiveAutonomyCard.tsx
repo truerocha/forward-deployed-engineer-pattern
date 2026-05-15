@@ -98,8 +98,11 @@ export const CognitiveAutonomyCard: React.FC<CognitiveAutonomyCardProps> = ({ me
   if (!metrics) {
     return (
       <Container header={<Header variant="h3">Cognitive Autonomy</Header>}>
-        <Box textAlign="center" padding="l" color="inherit">
-          <StatusIndicator type="pending">Awaiting first task</StatusIndicator>
+        <Box textAlign="center" padding="l" color="text-status-inactive">
+          <SpaceBetween size="s" alignItems="center">
+            <Box variant="h3" color="text-status-inactive">🧠</Box>
+            <StatusIndicator type="pending">Awaiting first task</StatusIndicator>
+          </SpaceBetween>
         </Box>
       </Container>
     );

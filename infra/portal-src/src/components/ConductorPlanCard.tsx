@@ -98,8 +98,11 @@ export const ConductorPlanCard: React.FC<ConductorPlanCardProps> = ({
   if (!steps || steps.length === 0) {
     return (
       <Container header={<Header variant="h3">Conductor Plan</Header>}>
-        <Box textAlign="center" padding="l" color="inherit">
-          <StatusIndicator type="pending">No active plan</StatusIndicator>
+        <Box textAlign="center" padding="l" color="text-status-inactive">
+          <SpaceBetween size="s" alignItems="center">
+            <Box variant="h3" color="text-status-inactive">⚙</Box>
+            <StatusIndicator type="pending">No active plan</StatusIndicator>
+          </SpaceBetween>
         </Box>
       </Container>
     );
