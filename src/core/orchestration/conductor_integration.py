@@ -208,6 +208,51 @@ def generate_conductor_manifest(
             post_plan_assessment.decomposition.reasoning,
         )
 
+    # --- Design Phase Injection (ADR-033) ---
+    # Optionally inject Brown-Field Elevation and/or DDD Design Phase steps
+    # based on fde-profile.json extensions and cognitive depth.
+    from src.core.orchestration.design_phase_injector import maybe_inject_design_phase
+
+    _cognitive_depth = post_plan_assessment.design_quality_score  # proxy for task complexity
+    _is_brown_field = bool(data_contract and data_contract.get("modifies_existing_files", True))
+    _plan_steps_raw = [
+        {"step_index": s.step_index, "subtask": s.subtask, "agent_role": s.agent_role,
+         "model_tier": s.model_tier, "access_list": list(s.access_list)}
+        for s in plan.steps
+    ]
+
+    modified_steps, injected_design_steps = maybe_inject_design_phase(
+        plan_steps=_plan_steps_raw,
+        cognitive_depth=_cognitive_depth,
+        is_brown_field=_is_brown_field,
+        task_description=task_description[:300],
+    )
+
+    if injected_design_steps:
+        logger.info(
+            "Design phase injected: %d steps prepended (depth=%.2f, brown_field=%s)",
+            len(injected_design_steps), _cognitive_depth, _is_brown_field,
+        )
+        # Rebuild plan steps from modified list for manifest conversion
+        from src.core.orchestration.conductor import WorkflowStep as _WS
+        new_steps = []
+        for step_dict in modified_steps:
+            new_steps.append(_WS(
+                step_index=step_dict["step_index"],
+                subtask=step_dict["subtask"],
+                agent_role=step_dict["agent_role"],
+                model_tier=step_dict.get("model_tier", "reasoning"),
+                access_list=step_dict.get("access_list", []),
+            ))
+        plan.steps = new_steps
+
+        # Store injection metadata for observability
+        enriched_context["_design_phase_injected"] = {
+            "steps_injected": len(injected_design_steps),
+            "cognitive_depth": _cognitive_depth,
+            "is_brown_field": _is_brown_field,
+        }
+
     manifest = _convert_plan_to_manifest(
         plan=plan,
         project_id=project_id,

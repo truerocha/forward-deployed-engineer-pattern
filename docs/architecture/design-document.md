@@ -151,6 +151,15 @@ See `docs/adr/` for detailed Architecture Decision Records:
 - ADR-022: Risk Inference Engine — Bayesian P(Failure|Context) Predictive Scoring
 - ADR-023: DORA Forecast Engine — Predictive DORA Metrics with EWMA Projection
 - ADR-024: SWE Synapses — Cognitive Design Intelligence for Agent Architecture
+- ADR-025: Permission Pipeline Alignment — Superset Proof of Liu et al.
+- ADR-026: Synapse 6 & 7 — Transparency and Deterministic Harness
+- ADR-027: Review Feedback Loop — ICRL Closed-Loop Learning
+- ADR-028: PR Reviewer Agent — Three-Level Review Architecture
+- ADR-029: Cognitive Autonomy Model — Depth-Calibrated Autonomy
+- ADR-030: Cognitive Router Dual-Path — EventBridge Routing
+- ADR-031: Cloudscape UX Reformulation — AWS Design System Migration
+- ADR-032: Extension Opt-In System — Per-Project FDE Intensity
+- ADR-033: Brown-Field Elevation & DDD Design Phase
 
 ## Testing Design
 
@@ -171,7 +180,7 @@ See `docs/adr/` for detailed Architecture Decision Records:
 | DORA Metrics | `python3 -m pytest tests/test_domain_segmented_metrics.py` | 4 DORA + 5 factory metrics |
 | Scope Boundaries | `python3 -m pytest tests/test_scope_boundaries.py` | Out-of-scope rejection, confidence levels |
 | Language Lint | `python3 scripts/lint_language.py` | Violent, trauma, weasel word detection |
-| Full Suite | `python3 -m pytest tests/ -v` | All 171 tests across 15 test files |
+| Full Suite | `python3 -m pytest tests/ -v` | All 1078+ tests across 30+ test files |
 | Risk Inference Engine | `python3 -m pytest tests/test_risk_inference_engine.py` | 33 tests: signal extraction, inference, thresholds, XAI, optimizer, scenarios |
 | SWE Synapses Engine | `python3 -c "from src.core.synapses import SynapseEngine"` | Import verification + 3 integration scenarios (O1/O3/O5) |
 | DORA Forecast Engine | `python3 -m pytest tests/test_dora_forecast.py` | 33 tests: EWMA, trend classification, level projection, health pulse, risk integration |
