@@ -10,8 +10,14 @@ if (storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color
   document.body.classList.add('awsui-dark-mode');
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// Error boundary for production debugging
+const root = document.getElementById('root')!;
+try {
+  createRoot(root).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+} catch (e: any) {
+  root.innerHTML = `<pre style="color:red;padding:20px;font-size:14px;">RENDER ERROR:\n${e?.message}\n${e?.stack}</pre>`;
+}

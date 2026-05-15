@@ -11,6 +11,7 @@
 /* ─── Required: Full-height layout for Cloudscape AppLayout ──────────────── */
 html, body, #root {
   height: 100%;
+  min-height: 100vh;
   margin: 0;
   padding: 0;
 }

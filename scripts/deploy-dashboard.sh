@@ -55,6 +55,11 @@ if [[ "$BUILD_FIRST" == "true" ]]; then
   rm -rf "$DASHBOARD_DIR/assets"
   cp -r "$PORTAL_SRC/dist/assets" "$DASHBOARD_DIR/assets"
   cp "$PORTAL_SRC/dist/index.html" "$DASHBOARD_DIR/index.html"
+  # Sync public assets (logos, images)
+  if [[ -d "$PORTAL_SRC/dist/img" ]]; then
+    rm -rf "$DASHBOARD_DIR/img"
+    cp -r "$PORTAL_SRC/dist/img" "$DASHBOARD_DIR/img"
+  fi
   echo "  ✅ Portal built and synced to $DASHBOARD_DIR"
 fi
 
