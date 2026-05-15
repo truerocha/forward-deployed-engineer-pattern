@@ -79,7 +79,7 @@ Each agent runs as an independent ECS task with its own resources, logs, and ret
 
 ## Architecture
 
-![Autonomous Code Factory](docs/architecture/planes/00-hero-overview.png)
+![Autonomous Code Factory](docs/architecture/reference-architecture.png)
 
 Five modular planes:
 
