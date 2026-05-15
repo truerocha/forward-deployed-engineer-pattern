@@ -361,6 +361,47 @@ class Orchestrator:
             task_queue.update_task_stage(task_id, "workspace", workspace_error=workspace.error)
             task_queue.append_task_event(task_id, "error", f"Workspace failed: {workspace.error[:150]}", phase="workspace")
 
+        # ── Step 7.6: Code Intelligence Auto-Activation (ADR-035) ────
+        # If no catalog exists for this repo, run lightweight onboarding
+        # to generate call graph + semantic index. This gives agents
+        # impact analysis and semantic search for the session.
+        # Trigger: catalog_confidence == 0.0 AND organism_level >= O2
+        # Cost: ~30s for typical repo (Tree-sitter parse + SQLite write)
+        # Security: Zero egress — all processing local to container.
+        if workspace.ready:
+            catalog_confidence = self._check_catalog_confidence(repo)
+            organism = data_contract.get("organism_level", "O3")
+            should_index = (
+                catalog_confidence == 0.0
+                and organism not in ("O1",)
+                and not os.environ.get("SKIP_CODE_INTELLIGENCE")
+            )
+            if should_index:
+                task_queue.append_task_event(
+                    task_id, "system",
+                    "Code intelligence: no catalog found — indexing repo for impact analysis...",
+                    phase="workspace",
+                )
+                catalog_path = self._run_code_intelligence_indexing(workspace.repo_path, repo)
+                if catalog_path:
+                    os.environ["CATALOG_PATH"] = catalog_path
+                    task_queue.append_task_event(
+                        task_id, "system",
+                        f"Code intelligence ready ({catalog_path})",
+                        phase="workspace",
+                    )
+                else:
+                    task_queue.append_task_event(
+                        task_id, "system",
+                        "Code intelligence indexing skipped (non-blocking)",
+                        phase="workspace",
+                    )
+            elif catalog_confidence > 0.0:
+                # Catalog exists — set path for agents to use
+                existing_catalog = self._find_existing_catalog(repo)
+                if existing_catalog:
+                    os.environ["CATALOG_PATH"] = existing_catalog
+
         # ── Step 8: Execute Pipeline (inner loop with plan tracking) ──
         task_queue.update_task_stage(task_id, "reconnaissance")
 
@@ -956,6 +997,116 @@ class Orchestrator:
         elif score >= 2:
             return "medium"
         return "low"
+
+    # ─── Code Intelligence (ADR-035) ───────────────────────────
+
+    def _check_catalog_confidence(self, repo: str) -> float:
+        """Check if a code intelligence catalog exists for this repo.
+
+        Returns:
+            0.0 if no catalog exists
+            0.5 if catalog exists but may be stale
+            1.0 if catalog exists and is recent
+        """
+        catalog_path = self._find_existing_catalog(repo)
+        if not catalog_path:
+            return 0.0
+
+        # Check staleness: if catalog is older than 7 days, it's partial confidence
+        try:
+            import time
+            age_days = (time.time() - os.path.getmtime(catalog_path)) / 86400
+            if age_days > 7:
+                return 0.5
+            return 1.0
+        except (OSError, TypeError):
+            return 0.5
+
+    def _find_existing_catalog(self, repo: str) -> str:
+        """Find an existing catalog for the given repo.
+
+        Search order:
+        1. CATALOG_PATH environment variable
+        2. Local workspace path (.code-intelligence/catalog.db)
+        3. S3 catalog location (catalogs/{owner}/{repo}/catalog.db)
+        """
+        # 1. Environment override
+        env_path = os.environ.get("CATALOG_PATH", "")
+        if env_path and os.path.exists(env_path):
+            return env_path
+
+        # 2. Local workspace
+        if repo:
+            local_candidates = [
+                f"/tmp/workspaces/{repo.replace('/', '_')}/.code-intelligence/catalog.db",
+                f"/tmp/catalogs/{repo.replace('/', '_')}/catalog.db",
+            ]
+            for candidate in local_candidates:
+                if os.path.exists(candidate):
+                    return candidate
+
+        # 3. S3 download (if bucket configured)
+        if self._factory_bucket and repo:
+            s3_key = f"catalogs/{repo}/catalog.db"
+            local_path = f"/tmp/catalogs/{repo.replace('/', '_')}/catalog.db"
+            try:
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                s3.download_file(self._factory_bucket, s3_key, local_path)
+                logger.info("Downloaded catalog from s3://%s/%s", self._factory_bucket, s3_key)
+                return local_path
+            except Exception:
+                pass  # No catalog in S3 — will need to generate
+
+        return ""
+
+    def _run_code_intelligence_indexing(self, repo_path: str, repo: str) -> str:
+        """Run lightweight code intelligence indexing on the workspace.
+
+        Generates a SQLite catalog with:
+        - Component extraction (functions, classes, methods)
+        - Call graph (caller/callee relationships)
+        - Basic descriptions (from docstrings/comments)
+
+        This is a subset of the full onboarding agent — optimized for speed
+        (~30s) rather than completeness (no AI descriptions, no embeddings).
+
+        Args:
+            repo_path: Path to the cloned repository.
+            repo: Full repo name (owner/name) for S3 persistence.
+
+        Returns:
+            Path to the generated catalog.db, or empty string on failure.
+        """
+        catalog_dir = f"/tmp/catalogs/{repo.replace('/', '_')}"
+        catalog_path = f"{catalog_dir}/catalog.db"
+
+        try:
+            os.makedirs(catalog_dir, exist_ok=True)
+
+            # Import the lightweight indexer (subset of onboarding)
+            from .onboarding.indexer import quick_index
+
+            quick_index(repo_path=repo_path, output_path=catalog_path)
+
+            logger.info("Code intelligence catalog generated: %s", catalog_path)
+
+            # Persist to S3 for future runs (non-blocking)
+            if self._factory_bucket:
+                try:
+                    s3_key = f"catalogs/{repo}/catalog.db"
+                    s3.upload_file(catalog_path, self._factory_bucket, s3_key)
+                    logger.info("Catalog persisted to s3://%s/%s", self._factory_bucket, s3_key)
+                except Exception as e:
+                    logger.warning("Failed to persist catalog to S3 (non-blocking): %s", e)
+
+            return catalog_path
+
+        except ImportError:
+            logger.warning("Code intelligence indexer not available — skipping")
+            return ""
+        except Exception as e:
+            logger.warning("Code intelligence indexing failed (non-blocking): %s", str(e)[:200])
+            return ""
 
     # ─── Constraint Extraction ──────────────────────────────────
 
