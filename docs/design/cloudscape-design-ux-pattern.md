@@ -272,6 +272,11 @@ Cloudscape components share React context internally. Manual chunk splitting cau
 - tailwindcss, autoprefixer, postcss
 - tailwind.config.js, postcss.config.js
 - Custom CSS variables (--bg-main, --text-main)
+- lucide-react (layout icons replaced by Cloudscape iconName props)
+- motion/framer-motion (layout animations replaced by Cloudscape native transitions)
+- Custom bento-card CSS class
+- Legacy utility classes (.text-dynamic, .text-secondary-dynamic, .text-aws-orange, .bg-bg-card, .border-border-main)
+- Dead components: MetricsCard, AgentSidebar, Terminal, RegistriesCard, PersonaRouter, ComponentHealthCard, PersonaFilteredCards, Header
 
 ---
 
@@ -314,6 +319,10 @@ User browser          SERVED
 | Tailwind utilities inside Cloudscape | Conflicting styles, broken dark mode | Remove Tailwind entirely |
 | height: 100% without min-height | AppLayout renders with zero height | Add min-height: 100vh |
 | key prop on Cloudscape components | TypeScript error (not in component props) | Wrap in div with key |
+| height: 100% + min-height: 100vh on #root | Double scroll context, AppLayout can't manage its own scroll | Use height: 100% on html/body, min-height: 100% on #root |
+| body * transition rule | Performance jank on scroll, conflicts with Cloudscape transitions | Remove entirely — Cloudscape handles its own transitions |
+| Custom --app-color-accent variable | Doesn't integrate with Cloudscape token system | Use #FF9900 inline in SVGs only, Cloudscape tokens elsewhere |
+| lucide-react icons in dashboard cards | Inconsistent with Cloudscape iconName vocabulary | Use Cloudscape Badge, StatusIndicator, iconName props |
 
 ---
 

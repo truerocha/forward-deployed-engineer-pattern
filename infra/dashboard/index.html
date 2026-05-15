@@ -5,21 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="factory-api-url" content="">
     <title>Forward Deployed Software Factory</title>
-    <!-- FOUC Prevention: Apply theme before any rendering occurs -->
     <script>
+      // FOUC Prevention: Apply Cloudscape dark mode before any rendering
       (function() {
         var theme = localStorage.getItem('fde-theme');
         if (!theme) {
           theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         }
-        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('awsui-dark-mode');
+        }
       })();
     </script>
-    <script type="module" crossorigin src="./assets/index-Sc0VoEgK.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Br9LwxY-.css">
+    <script type="module" crossorigin src="./assets/index-DGcJFMWf.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-ChNHYrqD.css">
   </head>
   <body>
     <div id="root"></div>
   </body>
 </html>
-

@@ -6,9 +6,12 @@
  *   - Delivery Authority: progress toward auto-merge, trust signals
  *   - Per-task depth comparison (recent tasks at different depths)
  *
- * This card IS the trust-building mechanism. Without visibility into
- * cognitive decisions, humans cannot validate the model and will never
- * enable auto-merge. The UX is not a display layer — it's the trust engine.
+ * Migrated to Cloudscape Design System:
+ *   - Container + Header shell (Dashboard Item pattern)
+ *   - ProgressBar for depth gauge and authority progress
+ *   - Badge for squad tags
+ *   - ColumnLayout + KeyValuePairs for metrics
+ *   - StatusIndicator for status displays
  *
  * Personas: Staff (full), PM (authority progress), SWE (per-task), SRE (health)
  *
@@ -16,7 +19,15 @@
  */
 
 import React from 'react';
-import { Brain, Shield, Zap, CheckCircle, Lock } from 'lucide-react';
+
+import Container from '@cloudscape-design/components/container';
+import Header from '@cloudscape-design/components/header';
+import Box from '@cloudscape-design/components/box';
+import SpaceBetween from '@cloudscape-design/components/space-between';
+import StatusIndicator from '@cloudscape-design/components/status-indicator';
+import ProgressBar from '@cloudscape-design/components/progress-bar';
+import Badge from '@cloudscape-design/components/badge';
+import ColumnLayout from '@cloudscape-design/components/column-layout';
 
 interface CapabilitySignal {
   name: string;
@@ -57,144 +68,170 @@ interface CognitiveAutonomyCardProps {
   metrics?: CognitiveAutonomyMetrics | null;
 }
 
-const DepthGauge: React.FC<{ depth: number }> = ({ depth }) => {
-  const percentage = depth * 100;
-  const color = depth >= 0.7 ? 'bg-purple-500' : depth >= 0.5 ? 'bg-blue-500' : depth >= 0.3 ? 'bg-emerald-500' : 'bg-slate-400';
-  const label = depth >= 0.7 ? 'Maximum' : depth >= 0.5 ? 'High' : depth >= 0.3 ? 'Medium' : 'Low';
+function getDepthLabel(depth: number): string {
+  if (depth >= 0.7) return 'Maximum';
+  if (depth >= 0.5) return 'High';
+  if (depth >= 0.3) return 'Medium';
+  return 'Low';
+}
 
-  return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-[9px] text-secondary-dynamic uppercase font-medium">Capability Depth</span>
-        <span className="text-xs font-mono font-bold text-dynamic">{depth.toFixed(2)} <span className="text-[8px] text-secondary-dynamic">({label})</span></span>
-      </div>
-      <div className="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-1000 ${color}`} style={{ width: `${percentage}%` }} />
-      </div>
-    </div>
-  );
-};
+function getDepthStatus(depth: number): 'success' | 'in-progress' | 'warning' | 'stopped' {
+  if (depth >= 0.7) return 'success';
+  if (depth >= 0.5) return 'in-progress';
+  if (depth >= 0.3) return 'warning';
+  return 'stopped';
+}
 
-const SignalBar: React.FC<{ signal: CapabilitySignal }> = ({ signal }) => {
-  const pct = (signal.value / signal.max) * 100;
-  const isFloorRaise = signal.contribution === 'raised floor';
-  return (
-    <div className="flex items-center gap-2 py-0.5">
-      <span className="text-[8px] text-secondary-dynamic w-20 truncate">{signal.name}</span>
-      <div className="flex-1 h-1 rounded-full bg-slate-200 dark:bg-slate-800">
-        <div className={`h-full rounded-full ${isFloorRaise ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-      </div>
-      <span className="text-[8px] font-mono text-dynamic w-8 text-right">{signal.value.toFixed(1)}</span>
-    </div>
-  );
-};
+function getAuthorityStatus(canAutoMerge: boolean, authority: string): 'success' | 'error' | 'warning' {
+  if (canAutoMerge) return 'success';
+  if (authority === 'blocked') return 'error';
+  return 'warning';
+}
 
-const AuthorityProgress: React.FC<{ progress: number; authority: string; canAutoMerge: boolean }> = ({ progress, authority, canAutoMerge }) => {
-  const icon = canAutoMerge
-    ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-    : authority === 'blocked'
-      ? <Lock className="w-3.5 h-3.5 text-red-400" />
-      : <Shield className="w-3.5 h-3.5 text-amber-400" />;
-  const label = canAutoMerge ? 'AUTO-MERGE EARNED' : authority === 'blocked' ? 'BLOCKED' : 'EARNING TRUST';
-  const color = canAutoMerge ? 'text-emerald-400' : authority === 'blocked' ? 'text-red-400' : 'text-amber-400';
-  const barColor = canAutoMerge ? 'bg-emerald-500' : authority === 'blocked' ? 'bg-red-500' : 'bg-amber-500';
-
-  return (
-    <div className="p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-border-main">
-      <div className="flex items-center gap-2 mb-1.5">
-        {icon}
-        <span className={`text-[9px] font-bold uppercase ${color}`}>{label}</span>
-        <span className="text-[9px] font-mono text-secondary-dynamic ml-auto">{progress}%</span>
-      </div>
-      <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800">
-        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${progress}%` }} />
-      </div>
-    </div>
-  );
-};
-
-const TaskDepthRow: React.FC<{ task: CognitiveAutonomyMetrics['recent_tasks'][0] }> = ({ task }) => {
-  const depthColor = task.depth >= 0.7 ? 'bg-purple-500' : task.depth >= 0.5 ? 'bg-blue-500' : task.depth >= 0.3 ? 'bg-emerald-500' : 'bg-slate-400';
-  return (
-    <div className="flex items-center gap-2 py-1">
-      <div className={`w-1.5 h-1.5 rounded-full ${depthColor}`} />
-      <span className="text-[8px] text-dynamic truncate flex-1">{task.title.slice(0, 30)}</span>
-      <span className="text-[8px] font-mono text-secondary-dynamic">{task.depth.toFixed(2)}</span>
-      <span className="text-[8px] font-mono text-secondary-dynamic">{task.squad_size}ag</span>
-    </div>
-  );
-};
+function getAuthorityLabel(canAutoMerge: boolean, authority: string): string {
+  if (canAutoMerge) return 'Auto-merge earned';
+  if (authority === 'blocked') return 'Blocked';
+  return 'Earning trust';
+}
 
 export const CognitiveAutonomyCard: React.FC<CognitiveAutonomyCardProps> = ({ metrics }) => {
   if (!metrics) {
     return (
-      <div className="h-full bento-card flex flex-col items-center justify-center transition-colors duration-300">
-        <Brain className="w-12 h-12 text-slate-700 mb-4" aria-hidden="true" />
-        <p className="text-sm font-medium text-dynamic mb-1">Cognitive Autonomy</p>
-        <p className="text-[10px] text-secondary-dynamic font-mono uppercase tracking-widest">Awaiting first task</p>
-      </div>
+      <Container header={<Header variant="h3">Cognitive Autonomy</Header>}>
+        <Box textAlign="center" padding="l" color="inherit">
+          <StatusIndicator type="pending">Awaiting first task</StatusIndicator>
+        </Box>
+      </Container>
     );
   }
 
+  const authorityStatus = getAuthorityStatus(metrics.can_auto_merge, metrics.authority_level);
+  const authorityLabel = getAuthorityLabel(metrics.can_auto_merge, metrics.authority_level);
+
   return (
-    <div className="h-full bento-card flex flex-col transition-colors duration-300">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-aws-orange" aria-hidden="true" />
-          <h2 className="text-sm font-bold text-secondary-dynamic uppercase tracking-widest">Cognitive Autonomy</h2>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Zap className="w-3 h-3 text-purple-400" aria-hidden="true" />
-          <span className="text-[10px] font-mono font-bold text-dynamic">{metrics.squad_size} agents</span>
-        </div>
-      </div>
+    <Container
+      header={
+        <Header
+          variant="h3"
+          description="Dual-axis autonomy visibility"
+          actions={
+            <SpaceBetween direction="horizontal" size="xs">
+              <Badge color="blue">{metrics.squad_size} agents</Badge>
+              <Badge color={metrics.can_auto_merge ? 'green' : 'grey'}>
+                {authorityLabel}
+              </Badge>
+            </SpaceBetween>
+          }
+        >
+          Cognitive Autonomy
+        </Header>
+      }
+      footer={
+        <Box fontSize="body-s" color="text-body-secondary">
+          ADR-029 • Depth: {getDepthLabel(metrics.capability_depth)} • Authority: {authorityLabel}
+        </Box>
+      }
+    >
+      <SpaceBetween size="m">
+        {/* Capability Depth */}
+        <ProgressBar
+          value={metrics.capability_depth * 100}
+          label="Capability Depth"
+          description={`${getDepthLabel(metrics.capability_depth)} (${metrics.capability_depth.toFixed(2)})`}
+          variant="standalone"
+        />
 
-      {/* Depth Gauge */}
-      <DepthGauge depth={metrics.capability_depth} />
+        {/* Squad Tags */}
+        <SpaceBetween direction="horizontal" size="xs">
+          <Badge color="blue">{metrics.model_tier}</Badge>
+          <Badge color="blue">{metrics.verification_level}</Badge>
+          <Badge color="grey">{metrics.topology}</Badge>
+          {metrics.include_adversarial && <Badge color="red">adversarial</Badge>}
+          {metrics.include_pr_reviewer && <Badge color="green">pr-reviewer</Badge>}
+        </SpaceBetween>
 
-      {/* Squad Tags */}
-      <div className="flex gap-1.5 mt-2 flex-wrap">
-        <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">{metrics.model_tier}</span>
-        <span className="text-[8px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">{metrics.verification_level}</span>
-        <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/20 text-secondary-dynamic font-mono">{metrics.topology}</span>
-        {metrics.include_adversarial && <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-mono">adversarial</span>}
-        {metrics.include_pr_reviewer && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">pr-reviewer</span>}
-      </div>
+        {/* Signals */}
+        {metrics.signals.length > 0 && (
+          <div>
+            <Box fontSize="body-s" color="text-body-secondary" margin={{ bottom: 'xs' }}>
+              Capability Signals
+            </Box>
+            <SpaceBetween size="xs">
+              {metrics.signals.slice(0, 4).map((signal) => (
+                <div key={signal.name}>
+                  <ProgressBar
+                    value={(signal.value / signal.max) * 100}
+                    label={signal.name}
+                    additionalInfo={`${signal.value.toFixed(1)}/${signal.max} (${signal.contribution})`}
+                    variant="standalone"
+                  />
+                </div>
+              ))}
+            </SpaceBetween>
+          </div>
+        )}
 
-      {/* Signals */}
-      <div className="mt-2 space-y-0">
-        {metrics.signals.slice(0, 4).map((signal) => <SignalBar key={signal.name} signal={signal} />)}
-      </div>
-
-      {/* Authority */}
-      <div className="mt-2">
-        <AuthorityProgress progress={metrics.auto_merge_progress} authority={metrics.authority_level} canAutoMerge={metrics.can_auto_merge} />
-      </div>
-
-      {/* Conditions */}
-      <div className="mt-1.5 grid grid-cols-3 gap-1">
-        <div className="text-center">
-          <span className={`text-[9px] font-mono font-bold ${metrics.cfr_current < metrics.cfr_threshold ? 'text-emerald-400' : 'text-red-400'}`}>{(metrics.cfr_current * 100).toFixed(0)}%</span>
-          <p className="text-[7px] text-secondary-dynamic">CFR</p>
+        {/* Authority Progress */}
+        <div>
+          <Box fontSize="body-s" color="text-body-secondary" margin={{ bottom: 'xs' }}>
+            Delivery Authority
+          </Box>
+          <ProgressBar
+            value={metrics.auto_merge_progress}
+            label="Auto-merge progress"
+            variant="standalone"
+            status={metrics.authority_level === 'blocked' ? 'error' : undefined}
+            additionalInfo={
+              <StatusIndicator type={authorityStatus}>
+                {authorityLabel}
+              </StatusIndicator>
+            }
+          />
         </div>
-        <div className="text-center">
-          <span className={`text-[9px] font-mono font-bold ${metrics.trust_score >= metrics.trust_threshold ? 'text-emerald-400' : 'text-amber-400'}`}>{metrics.trust_score.toFixed(0)}%</span>
-          <p className="text-[7px] text-secondary-dynamic">Trust</p>
-        </div>
-        <div className="text-center">
-          <span className={`text-[9px] font-mono font-bold ${metrics.consecutive_successes >= metrics.successes_needed ? 'text-emerald-400' : 'text-amber-400'}`}>{metrics.consecutive_successes}/{metrics.successes_needed}</span>
-          <p className="text-[7px] text-secondary-dynamic">Streak</p>
-        </div>
-      </div>
 
-      {/* Recent Tasks */}
-      {metrics.recent_tasks.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-border-main">
-          <p className="text-[8px] text-secondary-dynamic uppercase mb-1">Recent Task Depths</p>
-          {metrics.recent_tasks.slice(0, 3).map((task) => <TaskDepthRow key={task.task_id} task={task} />)}
-        </div>
-      )}
-    </div>
+        {/* Conditions Grid */}
+        <ColumnLayout columns={3} variant="text-grid">
+          <div>
+            <Box variant="awsui-key-label">CFR</Box>
+            <StatusIndicator type={metrics.cfr_current < metrics.cfr_threshold ? 'success' : 'error'}>
+              {(metrics.cfr_current * 100).toFixed(0)}%
+            </StatusIndicator>
+          </div>
+          <div>
+            <Box variant="awsui-key-label">Trust</Box>
+            <StatusIndicator type={metrics.trust_score >= metrics.trust_threshold ? 'success' : 'warning'}>
+              {metrics.trust_score.toFixed(0)}%
+            </StatusIndicator>
+          </div>
+          <div>
+            <Box variant="awsui-key-label">Streak</Box>
+            <StatusIndicator type={metrics.consecutive_successes >= metrics.successes_needed ? 'success' : 'warning'}>
+              {metrics.consecutive_successes}/{metrics.successes_needed}
+            </StatusIndicator>
+          </div>
+        </ColumnLayout>
+
+        {/* Recent Tasks */}
+        {metrics.recent_tasks.length > 0 && (
+          <div>
+            <Box fontSize="body-s" color="text-body-secondary" margin={{ bottom: 'xs' }}>
+              Recent Task Depths
+            </Box>
+            <SpaceBetween size="xs">
+              {metrics.recent_tasks.slice(0, 3).map((task) => (
+                <div key={task.task_id}>
+                  <SpaceBetween direction="horizontal" size="xs" alignItems="center">
+                    <StatusIndicator type={getDepthStatus(task.depth)} />
+                    <Box fontSize="body-s">{task.title.slice(0, 30)}</Box>
+                    <Box fontSize="body-s" variant="code">{task.depth.toFixed(2)}</Box>
+                    <Badge color="grey">{task.squad_size}ag</Badge>
+                  </SpaceBetween>
+                </div>
+              ))}
+            </SpaceBetween>
+          </div>
+        )}
+      </SpaceBetween>
+    </Container>
   );
 };

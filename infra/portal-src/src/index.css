@@ -1,28 +1,31 @@
 /**
- * Portal Global Styles — Cloudscape + AWS Branding Overrides
+ * Portal Global Styles — Cloudscape Alignment
  *
  * Cloudscape provides its own design tokens via @cloudscape-design/global-styles.
- * This file contains only:
- * 1. AWS branding accent overrides (orange highlight)
- * 2. TopNavigation positioning fix
- * 3. Minimal custom scrollbar styling
+ * This file contains ONLY:
+ * 1. Full-height layout for Cloudscape AppLayout
+ * 2. TopNavigation positioning
+ * 3. Minimal scrollbar styling (preserves existing feel)
+ *
+ * REMOVED (ADR-031 Cloudscape migration):
+ * - Custom CSS variables (--app-color-accent) — use Cloudscape tokens
+ * - .bento-card and legacy utility classes — all cards now use Container
+ * - body * transition rule — conflicts with Cloudscape transitions
+ * - *:focus-visible override — Cloudscape handles focus rings natively
+ * - Tailwind compatibility classes — Tailwind fully removed
  */
 
 /* ─── Required: Full-height layout for Cloudscape AppLayout ──────────────── */
-html, body, #root {
+html, body {
   height: 100%;
-  min-height: 100vh;
   margin: 0;
   padding: 0;
 }
 
-/* ─── Smooth Theme Transition (prevents flash when toggling dark/light) ──── */
-body {
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-body * {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+#root {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 /* ─── TopNavigation Fixed Header ─────────────────────────────────────────── */
@@ -30,11 +33,6 @@ body * {
   position: sticky;
   top: 0;
   z-index: 1002;
-}
-
-/* ─── AWS Branding Accent ─────────────────────────────────────────────────── */
-:root {
-  --app-color-accent: #FF9900;
 }
 
 /* ─── Custom Scrollbar (preserves existing feel) ──────────────────────────── */
@@ -53,46 +51,4 @@ body * {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-body-secondary, #8d99a8);
-}
-
-/* ─── Focus Visible (AWS Orange ring) ─────────────────────────────────────── */
-*:focus-visible {
-  outline: 2px solid var(--app-color-accent) !important;
-  outline-offset: 2px;
-}
-
-/* ─── Card Components Legacy Support ──────────────────────────────────────── */
-/* Existing card components still use some Tailwind classes during migration.
-   These utility classes provide backward compatibility. */
-.bento-card {
-  background-color: var(--color-background-container-content, #0f1b2a);
-  border: 1px solid var(--color-border-divider-default, #414d5c);
-  border-radius: 16px;
-  padding: 20px;
-  transition: border-color 0.2s;
-}
-
-.bento-card:hover {
-  border-color: var(--app-color-accent);
-}
-
-/* Legacy text utilities for cards not yet migrated */
-.text-dynamic {
-  color: var(--color-text-body-default, #d1d5db);
-}
-
-.text-secondary-dynamic {
-  color: var(--color-text-body-secondary, #8d99a8);
-}
-
-.text-aws-orange {
-  color: var(--app-color-accent);
-}
-
-.bg-bg-card {
-  background-color: var(--color-background-container-content, #0f1b2a);
-}
-
-.border-border-main {
-  border-color: var(--color-border-divider-default, #414d5c);
 }
