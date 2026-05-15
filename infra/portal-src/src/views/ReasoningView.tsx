@@ -73,10 +73,10 @@ export const ReasoningView: React.FC<ReasoningViewProps> = ({ logs }) => {
     <Table
       columnDefinitions={columnDefinitions}
       items={logs.slice(0, 100)}
-      variant="container"
+      variant="full-page"
       header={
         <Header
-          variant="h2"
+          variant="awsui-h1-sticky"
           counter={`(${logs.length})`}
           description={t('terminal.subtitle')}
         >
