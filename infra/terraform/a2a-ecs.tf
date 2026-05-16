@@ -150,10 +150,10 @@ resource "aws_ecs_task_definition" "a2a_agent" {
 
       healthCheck = {
         command     = ["CMD-SHELL", "curl -sf http://localhost:${each.value.port}/.well-known/agent-card.json || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
+        interval    = 10
+        timeout     = 3
+        retries     = 2
+        startPeriod = 30
       }
     },
     # ADOT Sidecar for distributed tracing
