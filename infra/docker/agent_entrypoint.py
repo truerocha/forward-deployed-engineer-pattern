@@ -446,6 +446,70 @@ def main():
         logger.info("Mode: Direct spec — %s", task_spec_path)
         result = orchestrator.handle_spec(read_spec.fn(task_spec_path), task_spec_path)
         logger.info("Result: %s", json.dumps(result, default=str))
+    elif os.environ.get("TASK_ID"):
+        # ─── Direct Dispatch Mode (reaper/cognitive router) ──────────────
+        # Started by EventBridge dispatch rule with TASK_ID override.
+        # Read the task record from DynamoDB and reconstruct the event.
+        _task_id = os.environ["TASK_ID"]
+        logger.info("Mode: Direct dispatch (TASK_ID=%s)", _task_id)
+
+        _task_queue_table = os.environ.get("TASK_QUEUE_TABLE", "")
+        if not _task_queue_table:
+            logger.error("TASK_ID set but TASK_QUEUE_TABLE missing — cannot read task")
+            sys.exit(1)
+
+        _ddb = boto3.resource("dynamodb", region_name=AWS_REGION)
+        _table = _ddb.Table(_task_queue_table)
+        _task_item = _table.get_item(Key={"task_id": _task_id}).get("Item")
+
+        if not _task_item:
+            logger.error("Task %s not found in DynamoDB — may have been dead-lettered", _task_id)
+            sys.exit(1)
+
+        if _task_item.get("status") in ("DEAD_LETTER", "COMPLETED", "FAILED"):
+            logger.info("Task %s is in terminal state (%s) — nothing to do", _task_id, _task_item["status"])
+            sys.exit(0)
+
+        # Claim the task: update status to IN_PROGRESS
+        from datetime import datetime, timezone
+        _table.update_item(
+            Key={"task_id": _task_id},
+            UpdateExpression="SET #s = :s, current_stage = :stage, started_at = :t, updated_at = :t",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={
+                ":s": "IN_PROGRESS",
+                ":stage": "workspace",
+                ":t": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        # Reconstruct event from stored task data
+        _repo = _task_item.get("repo", os.environ.get("EVENT_REPO", ""))
+        _issue_number = int(_task_item.get("issue_number", "0") or "0")
+        _title = _task_item.get("title", os.environ.get("EVENT_ISSUE_TITLE", ""))
+        _source = _task_item.get("source", "fde.github.webhook")
+
+        reconstructed_event = {
+            "source": _source,
+            "detail-type": "issue.labeled",
+            "detail": {
+                "action": "labeled",
+                "label": {"name": "factory-ready"},
+                "issue": {
+                    "number": _issue_number,
+                    "title": _title,
+                    "body": _task_item.get("body", ""),
+                    "labels": [{"name": "factory-ready"}],
+                },
+                "repository": {
+                    "full_name": _repo,
+                },
+            },
+        }
+        logger.info("Reconstructed event from DynamoDB: repo=%s issue=#%s title=%s",
+                    _repo, _issue_number, _title[:60])
+        result = orchestrator.handle_event(reconstructed_event)
+        logger.info("Result: %s", json.dumps(result, default=str))
     else:
         logger.info("No task. Set TASK_SPEC, EVENTBRIDGE_EVENT, or EVENT_SOURCE+EVENT_ACTION.")
 
