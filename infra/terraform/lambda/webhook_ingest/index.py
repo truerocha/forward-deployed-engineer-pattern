@@ -152,19 +152,22 @@ def handler(event, context):
         block_reason = _validate_dispatch_readiness(target_mode)
         if block_reason:
             if block_reason in ("orchestrator_not_ready", "config_read_failed"):
-                # Downgrade to monolith — orchestrator not available, but task can still run
+                # Downgrade to monolith — set READY so monolith picks it up directly
+                # (dispatch_monolith EventBridge rule is observability-only, no ECS target)
                 target_mode = "monolith"
                 task["target_mode"] = "monolith"
+                task["status"] = "READY"
                 table.update_item(
                     Key={"task_id": task["task_id"]},
-                    UpdateExpression="SET target_mode = :tm, updated_at = :t",
+                    UpdateExpression="SET target_mode = :tm, #s = :s, updated_at = :t",
+                    ExpressionAttributeNames={"#s": "status"},
                     ExpressionAttributeValues={
                         ":tm": "monolith",
+                        ":s": "READY",
                         ":t": datetime.now(timezone.utc).isoformat(),
                     },
                 )
-                logger.info("Downgraded to monolith (orchestrator not ready): %s", task["task_id"])
-                _emit_dispatch_event(task, depth_result, target_mode)
+                logger.info("Downgraded to monolith (status=READY): %s", task["task_id"])
             else:
                 # Hard block — infrastructure issue (missing image, etc.)
                 table.update_item(
