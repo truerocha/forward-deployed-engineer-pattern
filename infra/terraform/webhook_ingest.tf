@@ -94,7 +94,7 @@ resource "aws_iam_role_policy" "webhook_ingest_policy" {
       {
         Sid    = "DynamoDBWriteTaskQueue"
         Effect = "Allow"
-        Action = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Scan"]
+        Action = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem", "dynamodb:Scan"]
         Resource = [
           aws_dynamodb_table.task_queue.arn,
           aws_dynamodb_table.agent_lifecycle.arn,

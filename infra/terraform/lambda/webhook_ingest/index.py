@@ -529,7 +529,7 @@ def _emit_dispatch_event(task: dict, depth_result: dict, target_mode: str) -> No
     monolith runs as fallback.
     """
     try:
-        eventbridge.put_events(
+        response = eventbridge.put_events(
             Entries=[{
                 "Source": "fde.internal",
                 "DetailType": "task.dispatched",
@@ -546,8 +546,19 @@ def _emit_dispatch_event(task: dict, depth_result: dict, target_mode: str) -> No
                 }),
             }]
         )
-        logger.info("Dispatch event emitted: task_id=%s target_mode=%s depth=%.3f",
-                    task["task_id"], target_mode, depth_result["depth"])
+        # Validate response — put_events returns 200 even when entries fail
+        failed_count = response.get("FailedEntryCount", 0)
+        if failed_count > 0:
+            entry_error = response.get("Entries", [{}])[0]
+            logger.error(
+                "EventBridge PutEvents FAILED (entry rejected): task_id=%s error=%s code=%s",
+                task["task_id"],
+                entry_error.get("ErrorMessage", "unknown"),
+                entry_error.get("ErrorCode", "unknown"),
+            )
+        else:
+            logger.info("Dispatch event emitted: task_id=%s target_mode=%s depth=%.3f",
+                        task["task_id"], target_mode, depth_result["depth"])
     except Exception as e:
         # Non-blocking: monolith fallback will handle if this fails
         logger.error("Failed to emit dispatch event (monolith fallback active): %s", str(e))
