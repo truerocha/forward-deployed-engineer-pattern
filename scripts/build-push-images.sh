@@ -112,7 +112,7 @@ for entry in "${IMAGES[@]}"; do
   done
 
   echo -n "$LOG_PREFIX   Building... "
-  if docker build -f "$REPO_ROOT/$DOCKERFILE_PATH" $TAG_ARGS "$REPO_ROOT" >/dev/null 2>&1; then
+  if docker build --platform linux/amd64 -f "$REPO_ROOT/$DOCKERFILE_PATH" $TAG_ARGS "$REPO_ROOT" >/dev/null 2>&1; then
     echo "✅"
   else
     echo "❌"
