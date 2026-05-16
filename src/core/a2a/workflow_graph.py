@@ -101,11 +101,17 @@ class A2AWorkflowGraph:
         on first invocation, discovering the agent's capabilities dynamically.
         """
         try:
-            from strands.a2a import A2AAgent
-            return A2AAgent(endpoint=endpoint, timeout=self._timeout)
+            from a2a.client import A2AClient
+            return A2AClient(url=endpoint, timeout=self._timeout)
         except ImportError:
+            try:
+                from strands.multiagent.a2a import A2AServer
+                # Fallback: if only server SDK available, use mock
+                raise ImportError("A2AClient not available")
+            except ImportError:
+                pass
             logger.warning(
-                "strands.a2a not available — using mock A2A agent for endpoint %s",
+                "a2a.client not available — using mock A2A agent for endpoint %s",
                 endpoint,
             )
             return _MockA2AAgent(endpoint)

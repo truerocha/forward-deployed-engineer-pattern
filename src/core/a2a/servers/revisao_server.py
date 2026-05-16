@@ -104,7 +104,7 @@ def create_review_server(
     try:
         from strands import Agent
         from strands.models.bedrock import BedrockModel
-        from strands.a2a import A2AServer
+        from strands.multiagent.a2a import A2AServer
 
         model = BedrockModel(
             model_id=_model_id,
