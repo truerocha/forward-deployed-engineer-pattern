@@ -493,7 +493,7 @@ def review_pr_with_llm(
         return PRReviewResult(approved=True, summary="Empty diff — nothing to review")
 
     resolved_model = model_id or os.environ.get(
-        "PR_REVIEW_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0"
+        "PR_REVIEW_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     )
     constraint_text = "\n".join(f"- {c}" for c in (constraints or []))
 
@@ -558,10 +558,17 @@ def _invoke_bedrock(prompt: str, model_id: str) -> str:
     Uses the same pattern as the Constraint Extractor (direct invoke_model).
     """
     import json as json_module
+    import boto3
+    from botocore.config import Config
 
     bedrock = boto3.client(
         "bedrock-runtime",
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        config=Config(
+            retries={"max_attempts": 5, "mode": "adaptive"},
+            connect_timeout=30,
+            read_timeout=60,
+        ),
     )
 
     body = json_module.dumps({

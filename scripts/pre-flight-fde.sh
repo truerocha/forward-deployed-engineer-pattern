@@ -374,8 +374,8 @@ collect_config() {
         AWS_ENV="${AWS_ENV:-dev}"
         MANIFEST[aws_environment]="$AWS_ENV"
 
-        read -rp "    Bedrock model [default: anthropic.claude-sonnet-4-20250514-v1:0]: " BEDROCK_MODEL
-        BEDROCK_MODEL="${BEDROCK_MODEL:-anthropic.claude-sonnet-4-20250514-v1:0}"
+        read -rp "    Bedrock model [default: us.anthropic.claude-sonnet-4-5-20250929-v1:0]: " BEDROCK_MODEL
+        BEDROCK_MODEL="${BEDROCK_MODEL:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}"
         MANIFEST[bedrock_model]="$BEDROCK_MODEL"
 
         read -rp "    Enable AgentCore Runtime? [yes/no, default: no]: " ENABLE_AC

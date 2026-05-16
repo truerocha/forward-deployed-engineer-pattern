@@ -4,7 +4,7 @@
 aws_region  = "us-east-1"
 environment = "dev"
 
-bedrock_model_id    = "anthropic.claude-sonnet-4-20250514-v1:0"
+bedrock_model_id    = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 enable_agentcore    = false
 enable_ecs_service  = false
 agent_cpu           = "1024"

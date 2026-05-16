@@ -137,7 +137,7 @@ AGENT_CAPABILITIES: dict[str, dict[str, Any]] = {
 # Model tier mapping — resolved at runtime from env vars
 # Allows override via BEDROCK_MODEL_REASONING, BEDROCK_MODEL_STANDARD, BEDROCK_MODEL_FAST
 MODEL_TIERS: dict[str, str] = {
-    "reasoning": os.environ.get("BEDROCK_MODEL_REASONING", "us.anthropic.claude-sonnet-4-20250514-v1:0"),
+    "reasoning": os.environ.get("BEDROCK_MODEL_REASONING", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
     "standard": os.environ.get("BEDROCK_MODEL_STANDARD", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
     "fast": os.environ.get("BEDROCK_MODEL_FAST", "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
 }
