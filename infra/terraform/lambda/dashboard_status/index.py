@@ -452,10 +452,35 @@ def _handle_tasks(event, context):
         cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         stale_dispatch_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
 
+        # Read concurrency state BEFORE reconciliation — tasks queued behind saturated
+        # repos must NOT be marked as DISPATCH_FAILED (they are legitimately waiting).
+        try:
+            _counter_items = task_table.scan(
+                FilterExpression=Attr("task_id").begins_with("COUNTER#"),
+            ).get("Items", [])
+            _max_concurrent_item = task_table.get_item(
+                Key={"task_id": "CONFIG#max_concurrent_tasks"}
+            ).get("Item", {})
+            _max_concurrent = int(_max_concurrent_item.get("value", "3"))
+            _saturated_repos = set()
+            for ci in _counter_items:
+                repo = ci.get("task_id", "").replace("COUNTER#", "")
+                active_count = int(ci.get("active_count", 0))
+                if active_count >= _max_concurrent:
+                    _saturated_repos.add(repo)
+        except Exception:
+            _saturated_repos = set()
+            _max_concurrent = 3
+
         # Reconcile stale DISPATCHED tasks: mark as DISPATCH_FAILED if >10min without start
+        # BUT only if the repo has available capacity (not saturated). Tasks waiting for a
+        # concurrency slot are queued, not stuck.
         for item in items:
             if item.get("status") in ("DISPATCHED", "READY") and not item.get("started_at"):
                 if item.get("created_at", "") < stale_dispatch_cutoff:
+                    # Skip tasks whose repo is at capacity — they are queued, not failed
+                    if item.get("repo", "") in _saturated_repos:
+                        continue
                     try:
                         task_table.update_item(
                             Key={"task_id": item["task_id"]},
@@ -486,12 +511,37 @@ def _handle_tasks(event, context):
         idle_agents = total_agents - active_agents - stale_agents
 
         # Dispatch health: detect stuck tasks (DISPATCHED/READY > 5 min without execution start)
+        # IMPORTANT: Tasks in READY status whose repo has saturated concurrency are QUEUED,
+        # not stuck. Only flag tasks as stuck if their repo has available capacity but they
+        # still haven't started (indicating a dispatch failure, not a queue wait).
         dispatch_stuck_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+
+        # Read concurrency state to distinguish "queued" from "stuck"
+        try:
+            counter_items = task_table.scan(
+                FilterExpression=Attr("task_id").begins_with("COUNTER#"),
+            ).get("Items", [])
+            max_concurrent_item = task_table.get_item(
+                Key={"task_id": "CONFIG#max_concurrent_tasks"}
+            ).get("Item", {})
+            max_concurrent = int(max_concurrent_item.get("value", "3"))
+            saturated_repos = set()
+            for ci in counter_items:
+                repo = ci.get("task_id", "").replace("COUNTER#", "")
+                active_count = int(ci.get("active_count", 0))
+                if active_count >= max_concurrent:
+                    saturated_repos.add(repo)
+        except Exception:
+            saturated_repos = set()
+            max_concurrent = 3
+
         dispatch_stuck = [
             i for i in items
             if i.get("status") in ("DISPATCHED", "READY")
             and i.get("created_at", "") < dispatch_stuck_cutoff
             and not i.get("started_at")
+            # Exclude tasks whose repo is at capacity — they are queued, not stuck
+            and i.get("repo", "") not in saturated_repos
         ]
 
         # Enrich stuck tasks with actionable blocked reasons
