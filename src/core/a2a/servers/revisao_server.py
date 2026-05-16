@@ -117,15 +117,15 @@ def create_review_server(
             model=model,
             system_prompt=REVIEWER_SYSTEM_PROMPT,
             tools=[],  # Reviewer is pure reasoning — no tools needed
+            name=REVISAO_CARD["name"],
+            description=REVISAO_CARD["description"],
         )
 
-        # Wrap in A2A Server with explicit Agent Card
+        # Wrap in A2A Server
         server = A2AServer(
             agent=review_agent,
             host=host,
             port=port,
-            name=REVISAO_CARD["name"],
-            description=REVISAO_CARD["description"],
             version=REVISAO_CARD["version"],
         )
 

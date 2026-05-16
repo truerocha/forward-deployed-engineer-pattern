@@ -106,15 +106,15 @@ def create_research_server(
             model=model,
             system_prompt=RESEARCH_SYSTEM_PROMPT,
             tools=tools,
+            name=PESQUISA_CARD["name"],
+            description=PESQUISA_CARD["description"],
         )
 
-        # Wrap in A2A Server with explicit Agent Card
+        # Wrap in A2A Server
         server = A2AServer(
             agent=research_agent,
             host=host,
             port=port,
-            name=PESQUISA_CARD["name"],
-            description=PESQUISA_CARD["description"],
             version=PESQUISA_CARD["version"],
         )
 

@@ -114,15 +114,15 @@ def create_writing_server(
             model=model,
             system_prompt=ENGINEERING_SYSTEM_PROMPT,
             tools=tools,
+            name=ESCRITA_CARD["name"],
+            description=ESCRITA_CARD["description"],
         )
 
-        # Wrap in A2A Server with explicit Agent Card
+        # Wrap in A2A Server
         server = A2AServer(
             agent=writing_agent,
             host=host,
             port=port,
-            name=ESCRITA_CARD["name"],
-            description=ESCRITA_CARD["description"],
             version=ESCRITA_CARD["version"],
         )
 
