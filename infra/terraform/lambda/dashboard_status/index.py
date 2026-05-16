@@ -58,6 +58,8 @@ def handler(event, context):
 
     if "/status/health" in path:
         return _handle_health(event, context)
+    if "/status/sre-readiness" in path:
+        return _handle_sre_readiness(event, context)
     if "/status/capacity" in path:
         return _handle_capacity(event, context)
     if "/status/registries" in path:
@@ -1391,6 +1393,248 @@ def _compute_review_feedback_metrics(project_id: str) -> dict | None:
 
     except Exception:
         return None
+
+
+def _handle_sre_readiness(event, context):
+    """GET /status/sre-readiness — Dispatch pipeline readiness for SRE persona.
+
+    Aggregates four operational health dimensions:
+      1. Circuit breaker state (CONFIG#dispatch_routing)
+      2. Reaper healing actions (CloudWatch Logs)
+      3. Agent readiness (ECS task def, ECR image, Fargate capacity)
+      4. Task flow health (status distribution, latency percentiles)
+    """
+    try:
+        ecs = boto3.client("ecs", region_name=REGION)
+        logs = boto3.client("logs", region_name=REGION)
+        ecr = boto3.client("ecr", region_name=REGION)
+
+        # ── 1. Circuit Breaker State ──────────────────────────────────────────
+        circuit_breaker = {"state": "unknown", "last_change": None, "changed_by": "unknown", "blast_radius": 2}
+        try:
+            routing_config = task_table.get_item(
+                Key={"task_id": "CONFIG#dispatch_routing"}
+            ).get("Item", {})
+            circuit_breaker = {
+                "state": "closed" if routing_config.get("orchestrator_ready", False) else "open",
+                "orchestrator_ready": routing_config.get("orchestrator_ready", False),
+                "last_change": routing_config.get("updated_at", ""),
+                "changed_by": routing_config.get("updated_by", "unknown"),
+                "blast_radius": int(routing_config.get("max_failures_before_deregister", 2)),
+                "detection_window_min": int(routing_config.get("detection_window_min", 10)),
+            }
+        except Exception:
+            circuit_breaker["error"] = "config_read_failed"
+
+        # ── 2. Reaper Health (detailed) ───────────────────────────────────────
+        reaper_health = {
+            "last_run": None,
+            "tasks_reaped": 0,
+            "tasks_redispatched": 0,
+            "counter_drift_corrections": 0,
+            "orchestrator_assessment": "unknown",
+            "actions": [],
+        }
+        try:
+            log_events = logs.filter_log_events(
+                logGroupName="/aws/lambda/fde-dev-reaper",
+                limit=50,
+                interleaved=True,
+            ).get("events", [])
+
+            if log_events:
+                reaper_health["last_run"] = datetime.fromtimestamp(
+                    log_events[-1]["timestamp"] / 1000, tz=timezone.utc
+                ).isoformat()
+
+                for ev in log_events:
+                    msg = ev.get("message", "")
+                    ts = datetime.fromtimestamp(
+                        ev["timestamp"] / 1000, tz=timezone.utc
+                    ).isoformat()
+
+                    if "Reaped" in msg or ("FAILED" in msg and "stuck" in msg.lower()):
+                        reaper_health["tasks_reaped"] += 1
+                        reaper_health["actions"].append({"ts": ts, "action": "reaped", "detail": msg.strip()[:120]})
+                    elif "re-dispatch" in msg.lower() or ("READY" in msg and "closed-loop" in msg.lower()):
+                        reaper_health["tasks_redispatched"] += 1
+                        reaper_health["actions"].append({"ts": ts, "action": "redispatched", "detail": msg.strip()[:120]})
+                    elif "Counter drift" in msg or "counter_correction" in msg:
+                        reaper_health["counter_drift_corrections"] += 1
+                        reaper_health["actions"].append({"ts": ts, "action": "drift_corrected", "detail": msg.strip()[:120]})
+                    elif "orchestrator_health" in msg or "health assessment" in msg.lower():
+                        if "healthy" in msg.lower():
+                            reaper_health["orchestrator_assessment"] = "healthy"
+                        elif "degraded" in msg.lower():
+                            reaper_health["orchestrator_assessment"] = "degraded"
+                        elif "unhealthy" in msg.lower() or "failed" in msg.lower():
+                            reaper_health["orchestrator_assessment"] = "unhealthy"
+
+                # Keep only last 10 actions for the card
+                reaper_health["actions"] = reaper_health["actions"][-10:]
+        except Exception as e:
+            if "ResourceNotFoundException" in str(e):
+                reaper_health["error"] = "log_group_not_found"
+            else:
+                reaper_health["error"] = "log_read_failed"
+
+        # ── 3. Agent Readiness ────────────────────────────────────────────────
+        agent_readiness = {
+            "task_def_version": None,
+            "ecr_last_pushed": None,
+            "fargate_capacity": "unknown",
+            "recent_exit_codes": [],
+        }
+        try:
+            # Task definition version
+            task_def_family = os.environ.get("TASK_DEF_FAMILY", "fde-dev-strands-agent")
+            td_response = ecs.describe_task_definition(taskDefinition=task_def_family)
+            td = td_response.get("taskDefinition", {})
+            agent_readiness["task_def_version"] = f"rev:{td.get('revision', '?')}"
+            agent_readiness["task_def_family"] = td.get("family", task_def_family)
+
+            # ECR image last pushed
+            containers = td.get("containerDefinitions", [])
+            if containers:
+                image = containers[0].get("image", "")
+                # Parse repo from image URI: account.dkr.ecr.region.amazonaws.com/repo:tag
+                if ".ecr." in image and "/" in image:
+                    repo_name = image.split("/")[-1].split(":")[0]
+                    try:
+                        ecr_response = ecr.describe_images(
+                            repositoryName=repo_name,
+                            filter={"tagStatus": "TAGGED"},
+                            maxResults=1,
+                        )
+                        images = ecr_response.get("imageDetails", [])
+                        if images:
+                            agent_readiness["ecr_last_pushed"] = images[0].get("imagePushedAt", "")
+                            agent_readiness["ecr_image_tags"] = images[0].get("imageTags", [])[:3]
+                    except Exception:
+                        agent_readiness["ecr_last_pushed"] = "unable_to_read"
+
+            # Fargate capacity: check if tasks can start
+            running_arns = ecs.list_tasks(
+                cluster="fde-dev-cluster", desiredStatus="RUNNING"
+            ).get("taskArns", [])
+            stopped_arns = ecs.list_tasks(
+                cluster="fde-dev-cluster", desiredStatus="STOPPED"
+            ).get("taskArns", [])
+
+            agent_readiness["fargate_capacity"] = "available" if len(running_arns) < 10 else "near_limit"
+            agent_readiness["running_count"] = len(running_arns)
+
+            # Recent exit codes from stopped tasks
+            if stopped_arns:
+                stopped_tasks = ecs.describe_tasks(
+                    cluster="fde-dev-cluster", tasks=stopped_arns[:5]
+                ).get("tasks", [])
+                for t in stopped_tasks:
+                    for container in t.get("containers", []):
+                        exit_code = container.get("exitCode")
+                        if exit_code is not None:
+                            agent_readiness["recent_exit_codes"].append({
+                                "task_arn": t.get("taskArn", "").split("/")[-1][:12],
+                                "exit_code": exit_code,
+                                "reason": container.get("reason", "")[:80],
+                                "stopped_at": t.get("stoppedAt", ""),
+                            })
+                agent_readiness["recent_exit_codes"] = agent_readiness["recent_exit_codes"][:5]
+        except Exception:
+            agent_readiness["error"] = "ecs_read_failed"
+
+        # ── 4. Task Flow Health ───────────────────────────────────────────────
+        task_flow = {
+            "status_distribution": {},
+            "avg_ingested_duration_ms": 0,
+            "dispatch_to_start_p50_ms": 0,
+            "dispatch_to_start_p95_ms": 0,
+        }
+        try:
+            # Status distribution: count tasks in each status
+            statuses = ["READY", "DISPATCHED", "IN_PROGRESS", "COMPLETED", "FAILED", "DEAD_LETTER"]
+            for status in statuses:
+                try:
+                    response = task_table.query(
+                        IndexName="status-created-index",
+                        KeyConditionExpression=Key("status").eq(status),
+                        Select="COUNT",
+                    )
+                    task_flow["status_distribution"][status] = response.get("Count", 0)
+                except Exception:
+                    task_flow["status_distribution"][status] = 0
+
+            # Ingested duration: time from created_at to first stage change
+            cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            recent_completed = task_table.query(
+                IndexName="status-created-index",
+                KeyConditionExpression=Key("status").eq("COMPLETED") & Key("created_at").gte(cutoff_24h),
+                Limit=20,
+            ).get("Items", [])
+
+            ingested_durations = []
+            dispatch_latencies = []
+            for item in recent_completed:
+                events = item.get("events", [])
+                created_at = item.get("created_at", "")
+                if not created_at or not events:
+                    continue
+
+                # Find first non-ingested event timestamp
+                for ev in events:
+                    if ev.get("phase") and ev["phase"] != "ingested":
+                        try:
+                            start = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                            first_stage = datetime.fromisoformat(ev["ts"].replace("Z", "+00:00"))
+                            ingested_durations.append(int((first_stage - start).total_seconds() * 1000))
+                        except (ValueError, KeyError):
+                            pass
+                        break
+
+                # Dispatch-to-start: time from DISPATCHED event to first RUNNING event
+                dispatched_ts = None
+                running_ts = None
+                for ev in events:
+                    msg = ev.get("msg", "").lower()
+                    if "dispatch" in msg and not dispatched_ts:
+                        dispatched_ts = ev.get("ts")
+                    if ("running" in msg or "started" in msg) and dispatched_ts and not running_ts:
+                        running_ts = ev.get("ts")
+                        break
+
+                if dispatched_ts and running_ts:
+                    try:
+                        d = datetime.fromisoformat(dispatched_ts.replace("Z", "+00:00"))
+                        r = datetime.fromisoformat(running_ts.replace("Z", "+00:00"))
+                        dispatch_latencies.append(int((r - d).total_seconds() * 1000))
+                    except (ValueError, KeyError):
+                        pass
+
+            if ingested_durations:
+                ingested_durations.sort()
+                task_flow["avg_ingested_duration_ms"] = int(sum(ingested_durations) / len(ingested_durations))
+
+            if dispatch_latencies:
+                dispatch_latencies.sort()
+                n = len(dispatch_latencies)
+                task_flow["dispatch_to_start_p50_ms"] = dispatch_latencies[n // 2]
+                task_flow["dispatch_to_start_p95_ms"] = dispatch_latencies[int(n * 0.95)] if n > 1 else dispatch_latencies[-1]
+
+        except Exception:
+            task_flow["error"] = "flow_read_failed"
+
+        body = {
+            "circuit_breaker": circuit_breaker,
+            "reaper_health": reaper_health,
+            "agent_readiness": agent_readiness,
+            "task_flow": task_flow,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return _response(200, body)
+
+    except Exception as e:
+        return _response(500, {"error": "Internal server error"})
 
 
 def _handle_capacity(event, context):
