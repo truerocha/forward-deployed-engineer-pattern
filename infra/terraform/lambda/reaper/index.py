@@ -428,11 +428,16 @@ def _assess_orchestrator_health(table) -> dict:
     """Phase 5: Assess orchestrator health and update CONFIG#dispatch_routing.
 
     Logic (based on observed task outcomes, not infrastructure checks):
-    - Count tasks with target_mode=distributed that COMPLETED in last 30 min
-    - Count tasks with target_mode=distributed that FAILED/DEAD_LETTER in last 30 min
+    - Count tasks with target_mode=distributed that COMPLETED in last 10 min
+    - Count tasks with target_mode=distributed that FAILED/DEAD_LETTER in last 10 min
     - If success_count >= 1 and failure_rate < 50%: orchestrator_ready = true
-    - If failure_count >= 3 consecutive with zero successes: orchestrator_ready = false
+    - If failure_count >= 2 consecutive with zero successes: orchestrator_ready = false
     - If no distributed tasks observed: leave state unchanged (no signal)
+
+    SRE thresholds (working backwards from acceptable blast radius):
+    - 10 min window (2 reaper cycles) — fast detection
+    - 2 failures to deregister — max 2 tasks affected before circuit opens
+    - 1 success to re-register — proves orchestrator recovered
 
     This creates a self-healing loop:
     - Orchestrator starts working → reaper observes successes → sets ready=true
@@ -440,7 +445,7 @@ def _assess_orchestrator_health(table) -> dict:
     - No manual intervention needed at any point
     """
     now = datetime.now(timezone.utc)
-    window = now - timedelta(minutes=30)
+    window = now - timedelta(minutes=10)
     window_iso = window.isoformat()
 
     # Query recent COMPLETED tasks with target_mode=distributed
@@ -482,7 +487,7 @@ def _assess_orchestrator_health(table) -> dict:
     # Decision logic
     failure_rate = failures / total if total > 0 else 0
     should_be_ready = successes >= 1 and failure_rate < 0.5
-    should_deregister = failures >= 3 and successes == 0
+    should_deregister = failures >= 2 and successes == 0
 
     new_ready = current_ready
     action = "no_change"
