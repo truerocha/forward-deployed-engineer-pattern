@@ -452,51 +452,15 @@ def _handle_tasks(event, context):
         cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         stale_dispatch_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
 
-        # Read concurrency state BEFORE reconciliation — tasks queued behind saturated
-        # repos must NOT be marked as DISPATCH_FAILED (they are legitimately waiting).
-        try:
-            _counter_items = task_table.scan(
-                FilterExpression=Attr("task_id").begins_with("COUNTER#"),
-            ).get("Items", [])
-            _max_concurrent_item = task_table.get_item(
-                Key={"task_id": "CONFIG#max_concurrent_tasks"}
-            ).get("Item", {})
-            _max_concurrent = int(_max_concurrent_item.get("value", "3"))
-            _saturated_repos = set()
-            for ci in _counter_items:
-                repo = ci.get("task_id", "").replace("COUNTER#", "")
-                active_count = int(ci.get("active_count", 0))
-                if active_count >= _max_concurrent:
-                    _saturated_repos.add(repo)
-        except Exception:
-            _saturated_repos = set()
-            _max_concurrent = 3
+        # NOTE: State reconciliation (marking stuck tasks as FAILED) is the REAPER's
+        # responsibility — not the dashboard's. The dashboard is read-only.
+        # See: reaper/index.py Phase 1 (_reap_stuck_tasks) and Phase 3 (_find_redispatch_eligible)
+        # This separation prevents:
+        #   - Race conditions between reaper and dashboard mutating the same state
+        #   - Counter drift (reaper decrements counters on reap; dashboard did not)
+        #   - Side-effects on observability endpoints (GET should not mutate)
 
-        # Reconcile stale DISPATCHED tasks: mark as DISPATCH_FAILED if >10min without start
-        # BUT only if the repo has available capacity (not saturated). Tasks waiting for a
-        # concurrency slot are queued, not stuck.
-        for item in items:
-            if item.get("status") in ("DISPATCHED", "READY") and not item.get("started_at"):
-                if item.get("created_at", "") < stale_dispatch_cutoff:
-                    # Skip tasks whose repo is at capacity — they are queued, not failed
-                    if item.get("repo", "") in _saturated_repos:
-                        continue
-                    try:
-                        task_table.update_item(
-                            Key={"task_id": item["task_id"]},
-                            UpdateExpression="SET #s = :s, #e = :e, updated_at = :t",
-                            ExpressionAttributeNames={"#s": "status", "#e": "error"},
-                            ExpressionAttributeValues={
-                                ":s": "DISPATCH_FAILED",
-                                ":e": "Task dispatched but never started (>10min). Likely cause: missing container image or ECS capacity.",
-                                ":t": datetime.now(timezone.utc).isoformat(),
-                            },
-                        )
-                        item["status"] = "DISPATCH_FAILED"
-                    except Exception:
-                        pass
-
-        # Active = only tasks that are genuinely running (not stale dispatches)
+        # Active = tasks genuinely running or recently dispatched (not stale)
         active = sum(1 for i in items if i.get("status") in ("RUNNING", "IN_PROGRESS") or
                      (i.get("status") in ("DISPATCHED", "PENDING", "READY") and i.get("created_at", "") >= stale_dispatch_cutoff))
         completed = sum(1 for i in items if i.get("status") == "COMPLETED" and i.get("updated_at", "") >= cutoff_24h)
