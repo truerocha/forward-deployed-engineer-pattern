@@ -152,22 +152,25 @@ def handler(event, context):
         block_reason = _validate_dispatch_readiness(target_mode)
         if block_reason:
             if block_reason in ("orchestrator_not_ready", "config_read_failed"):
-                # Downgrade to monolith — set READY so monolith picks it up directly
-                # (dispatch_monolith EventBridge rule is observability-only, no ECS target)
+                # Downgrade to monolith — emit dispatch event immediately.
+                # The dispatch_distributed EventBridge rule accepts both target_modes
+                # and starts strands-agent ECS task. No 10-min reaper wait needed.
                 target_mode = "monolith"
                 task["target_mode"] = "monolith"
-                task["status"] = "READY"
+                task["status"] = "DISPATCHED"
                 table.update_item(
                     Key={"task_id": task["task_id"]},
                     UpdateExpression="SET target_mode = :tm, #s = :s, updated_at = :t",
                     ExpressionAttributeNames={"#s": "status"},
                     ExpressionAttributeValues={
                         ":tm": "monolith",
-                        ":s": "READY",
+                        ":s": "DISPATCHED",
                         ":t": datetime.now(timezone.utc).isoformat(),
                     },
                 )
-                logger.info("Downgraded to monolith (status=READY): %s", task["task_id"])
+                # Emit dispatch event so ECS starts immediately (closed-loop)
+                _emit_dispatch_event(task, depth_result, target_mode)
+                logger.info("Downgraded to monolith (dispatched immediately): %s", task["task_id"])
             else:
                 # Hard block — infrastructure issue (missing image, etc.)
                 table.update_item(
