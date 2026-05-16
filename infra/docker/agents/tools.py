@@ -589,3 +589,48 @@ def read_factory_health(window_days: int = 30) -> str:
 RECON_TOOLS = [read_spec, run_shell_command, query_code_kb]
 ENGINEERING_TOOLS = [read_spec, write_artifact, run_shell_command, query_code_kb, update_github_issue, update_gitlab_issue, update_asana_task, create_github_pull_request, create_gitlab_merge_request]
 REPORTING_TOOLS = [write_artifact, update_github_issue, update_gitlab_issue, update_asana_task, read_factory_metrics, read_factory_health]
+
+# A2A Protocol tools — intentional agent-to-agent communication (Synapse 6-7)
+try:
+    from .a2a_tool import invoke_a2a_agent as _invoke_a2a_raw, list_a2a_agents as _list_a2a_raw
+
+    @tool
+    def invoke_a2a_agent(agent_name: str, task_description: str, context: str = "") -> str:
+        """Invoke a specialized A2A agent for collaboration.
+
+        Use when your reasoning determines you need another agent's capabilities:
+          - "pesquisa": factual research, source attribution, data collection
+          - "escrita": structured document/code generation with feedback loops
+          - "revisao": independent adversarial review, quality scoring
+
+        State clearly WHY you need this agent — transparency is required.
+
+        Args:
+            agent_name: One of "pesquisa", "escrita", "revisao"
+            task_description: What you need the agent to do (be specific)
+            context: Optional context to pass (prior work, constraints)
+
+        Returns:
+            JSON string with the agent's response (status, result, response_ms)
+        """
+        result = _invoke_a2a_raw(agent_name, task_description, context)
+        return json.dumps(result, default=str, indent=2)
+
+    @tool
+    def list_a2a_agents() -> str:
+        """List available A2A agents and their capabilities.
+
+        Use to discover what agents are available before invoking one.
+
+        Returns:
+            JSON with agent names, descriptions, and usage guidance.
+        """
+        return json.dumps(_list_a2a_raw(), indent=2)
+
+    # Add A2A tools to engineering (primary user) and recon (for research delegation)
+    ENGINEERING_TOOLS.extend([invoke_a2a_agent, list_a2a_agents])
+    RECON_TOOLS.append(list_a2a_agents)
+
+except ImportError:
+    # A2A module not available (e.g., minimal container build)
+    pass
