@@ -1,4 +1,24 @@
-FROM python:3.12-slim AS base
+# ═══════════════════════════════════════════════════════════════
+# Dockerfile.strands-agent — Multi-Stage Build for FDE Monolith Agent
+#
+# Stage 1 (deps): Install Python dependencies → highly cacheable
+# Stage 2 (app): Copy application code → invalidates only on src/ changes
+# Stage 3 (runtime): Final slim image with non-root user + OCI labels
+#
+# Build args (injected by build-push-images.sh):
+#   GIT_SHA    — commit hash for traceability
+#   BUILD_TIME — ISO timestamp for drift detection
+#
+# Usage:
+#   docker build --platform linux/amd64 \
+#     --build-arg GIT_SHA=$(git rev-parse HEAD) \
+#     --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+#     -f infra/docker/Dockerfile.strands-agent -t fde-strands-agent:local .
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Stage 1: Dependencies (cached unless requirements.txt changes) ──────
+FROM python:3.12-slim AS deps
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,22 +30,48 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 COPY infra/docker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy agent application layer
+# ─── Stage 2: Application Code ───────────────────────────────────────────
+FROM deps AS app
+
+# Agent application layer
 COPY infra/docker/agents/ /app/agents/
 COPY infra/docker/agent_entrypoint.py .
 
-# Copy A2A protocol layer (SquadBridge, orchestrator, contracts)
-# Required for Conductor → A2A delegation via squad_bridge.should_use_a2a()
+# A2A protocol layer (SquadBridge, orchestrator, contracts, memory, compressor)
 COPY src/core/ /app/src/core/
 COPY src/__init__.py /app/src/__init__.py
 
-# Copy factory template artifacts
+# Factory template artifacts
 COPY .kiro/ /app/.kiro/
 COPY docs/templates/ /app/docs/templates/
 COPY scripts/ /app/scripts/
 
+# ─── Stage 3: Runtime (final image) ─────────────────────────────────────
+FROM app AS runtime
+
+# Build-time metadata for observability and drift detection
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
+# OCI Image Spec labels — queryable via `docker inspect` and ECR API
+LABEL org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}" \
+      org.opencontainers.image.source="https://github.com/truerocha/forward-deployed-engineer-pattern" \
+      org.opencontainers.image.title="fde-strands-agent" \
+      org.opencontainers.image.description="FDE Code Factory — Monolith Pipeline Agent" \
+      com.fde.component="strands-agent" \
+      com.fde.pipeline="monolith"
+
+# Persist build metadata as env vars (accessible at runtime for health endpoints)
+ENV FDE_IMAGE_SHA="${GIT_SHA}" \
+    FDE_IMAGE_BUILT_AT="${BUILD_TIME}"
+
+# Security: non-root user
 RUN useradd -m -s /bin/bash agent
 USER agent
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+
 ENTRYPOINT ["python3", "agent_entrypoint.py"]

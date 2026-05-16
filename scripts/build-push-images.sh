@@ -107,15 +107,23 @@ for entry in "${IMAGES[@]}"; do
     continue
   fi
 
-  # Build with all tags
+  # Compute build metadata for OCI labels (drift detection)
+  GIT_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")
+  BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  # Build with all tags + OCI metadata
   TAG_ARGS=""
   IFS=',' read -ra TAG_ARRAY <<< "$tags"
   for tag in "${TAG_ARRAY[@]}"; do
     TAG_ARGS="$TAG_ARGS -t ${ECR_REPO}:${tag}"
   done
 
-  echo -n "$LOG_PREFIX   Building... "
-  if docker build --platform linux/amd64 -f "$REPO_ROOT/$DOCKERFILE_PATH" $TAG_ARGS "$REPO_ROOT/$BUILD_CONTEXT" >/dev/null 2>&1; then
+  echo -n "$LOG_PREFIX   Building (sha=$GIT_SHA)... "
+  if docker build --platform linux/amd64 \
+    -f "$REPO_ROOT/$DOCKERFILE_PATH" \
+    --build-arg GIT_SHA="$GIT_SHA" \
+    --build-arg BUILD_TIME="$BUILD_TIME" \
+    $TAG_ARGS "$REPO_ROOT/$BUILD_CONTEXT" >/dev/null 2>&1; then
     echo "✅"
   else
     echo "❌"

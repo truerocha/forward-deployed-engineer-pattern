@@ -1,15 +1,27 @@
-FROM python:3.12-slim
+# ═══════════════════════════════════════════════════════════════
+# Dockerfile.onboarding-agent — Multi-Stage Build for Repo Onboarding
+#
+# Phase 0 agent: Assesses new repos via git history analysis.
+# Recommends autonomy level, profile, organism level, team archetype.
+# Uses GitHub CLI (gh) for repo metadata access.
+#
+# Build context: infra/docker/ (not repo root)
+#
+# Stage 1 (deps): System packages + Python deps → highly cacheable
+# Stage 2 (app): Copy agent code
+# Stage 3 (runtime): Non-root user + OCI labels
+# ═══════════════════════════════════════════════════════════════
 
-LABEL maintainer="FDE Code Factory"
-LABEL description="Repo Onboarding Agent — Phase 0: Codebase Reasoning Brain"
+# ─── Stage 1: Dependencies ───────────────────────────────────────────────
+FROM python:3.12-slim AS deps
 
-# Install system dependencies
+WORKDIR /app
+
+# System dependencies (git for repo analysis, gh for GitHub API)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    git curl && rm -rf /var/lib/apt/lists/*
 
-# Install GitHub CLI (gh)
+# GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -18,24 +30,40 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get install -y gh \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# Install Python dependencies
+# Python dependencies
 COPY requirements-onboarding.txt .
 RUN pip install --no-cache-dir -r requirements-onboarding.txt
 
-# Copy agent code
+# ─── Stage 2: Application Code ───────────────────────────────────────────
+FROM deps AS app
+
 COPY agents/ ./agents/
+
+# ─── Stage 3: Runtime ────────────────────────────────────────────────────
+FROM app AS runtime
+
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
+LABEL org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}" \
+      org.opencontainers.image.source="https://github.com/truerocha/forward-deployed-engineer-pattern" \
+      org.opencontainers.image.title="fde-onboarding-agent" \
+      org.opencontainers.image.description="FDE Code Factory — Repo Onboarding Agent (Phase 0)" \
+      com.fde.component="onboarding-agent" \
+      com.fde.pipeline="onboarding"
+
+ENV FDE_IMAGE_SHA="${GIT_SHA}" \
+    FDE_IMAGE_BUILT_AT="${BUILD_TIME}"
 
 # Security: non-root user (SEC 6: least privilege)
 RUN useradd -r -s /bin/false -d /app agent \
     && chown -R agent:agent /app
 USER agent
 
-# Entrypoint
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 ENV LOG_LEVEL=INFO
 
-# Suppress onnxruntime C-level cpuid warning (emitted during shared lib init,
-# cannot be suppressed via Python or env vars). Shell wrapper filters stderr.
+# Suppress onnxruntime C-level cpuid warning
 ENTRYPOINT ["sh", "-c", "python -m agents.onboarding 2>&1 | grep -v 'onnxruntime cpuid_info warning'"]

@@ -1,4 +1,21 @@
-FROM python:3.12-slim AS base
+# ═══════════════════════════════════════════════════════════════
+# Dockerfile.a2a-agent — Multi-Stage Build for A2A Protocol Agents
+#
+# Builds a single image used by all 3 A2A agents (pesquisa, escrita, revisao).
+# The agent type is selected at runtime via A2A_AGENT_TYPE env var.
+#
+# Stage 1 (deps): Install Python dependencies → highly cacheable
+# Stage 2 (app): Copy A2A module code → invalidates only on src/core/a2a/ changes
+# Stage 3 (runtime): Final slim image with non-root user + OCI labels
+#
+# Build args (injected by build-push-images.sh):
+#   GIT_SHA    — commit hash for traceability
+#   BUILD_TIME — ISO timestamp for drift detection
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Stage 1: Dependencies ───────────────────────────────────────────────
+FROM python:3.12-slim AS deps
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,15 +24,40 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY infra/docker/requirements-a2a.txt .
 RUN pip install --no-cache-dir -r requirements-a2a.txt
 
-# Copy A2A module and dependencies
+# ─── Stage 2: Application Code ───────────────────────────────────────────
+FROM deps AS app
+
+# A2A module and dependencies
 COPY src/core/a2a/ /app/src/core/a2a/
 COPY src/core/__init__.py /app/src/core/__init__.py
 COPY src/__init__.py /app/src/__init__.py
 
+# ─── Stage 3: Runtime ────────────────────────────────────────────────────
+FROM app AS runtime
+
+# Build-time metadata for observability and drift detection
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
+# OCI Image Spec labels
+LABEL org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}" \
+      org.opencontainers.image.source="https://github.com/truerocha/forward-deployed-engineer-pattern" \
+      org.opencontainers.image.title="fde-a2a-agent" \
+      org.opencontainers.image.description="FDE Code Factory — A2A Protocol Agent (pesquisa/escrita/revisao)" \
+      com.fde.component="a2a-agent" \
+      com.fde.pipeline="distributed"
+
+# Persist build metadata as env vars (accessible at runtime for health/status)
+ENV FDE_IMAGE_SHA="${GIT_SHA}" \
+    FDE_IMAGE_BUILT_AT="${BUILD_TIME}"
+
+# Security: non-root user
 RUN useradd -m -s /bin/bash agent
 USER agent
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
 
 # Default: research agent on port 9001
@@ -25,5 +67,5 @@ ENV A2A_PORT=9001
 
 EXPOSE 9001 9002 9003
 
-# Shell form to allow env var expansion in ENTRYPOINT
+# Shell form to allow env var expansion
 CMD ["sh", "-c", "python3 -m src.core.a2a.servers.${A2A_AGENT_TYPE}_server"]

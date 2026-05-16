@@ -1,0 +1,89 @@
+# ═══════════════════════════════════════════════════════════════
+# .dockerignore — Reduce build context for Docker images
+#
+# Without this file, the entire repo (~300MB+) is sent to the
+# Docker daemon on every build. This file excludes everything
+# that is NOT needed by any Dockerfile in infra/docker/.
+#
+# Rule: if a Dockerfile doesn't COPY it, exclude it here.
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Version Control ─────────────────────────────────────────
+.git
+.gitignore
+
+# ─── IDE and Editor ──────────────────────────────────────────
+.vscode
+.cursor
+.kiro/hooks
+.kiro/settings
+.kiro/steering
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# ─── Terraform State (SECRETS — never include) ──────────────
+infra/terraform/.terraform
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+infra/terraform/tfplan
+infra/terraform/.build
+infra/terraform/factory.tfvars
+
+# ─── Node.js (portal build artifacts) ───────────────────────
+infra/portal-src/node_modules
+infra/portal-src/dist
+node_modules
+
+# ─── Python Caches ───────────────────────────────────────────
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+
+# ─── Documentation (not needed in containers) ───────────────
+docs/adr
+docs/architecture
+docs/design
+docs/governance
+docs/testing
+docs/wellarchitected
+docs/internal
+benchmarking-fde-analysis.md
+CHANGELOG.md
+LICENSE
+README.md
+fde-design-swe-sinapses.md
+
+# ─── Catalogs and Data (local dev artifacts) ────────────────
+catalogs
+
+# ─── CI/CD Config (not needed in containers) ────────────────
+.github
+.gitlab
+.amazonq
+.claude
+.clinerules
+.aidlc-rule-details
+
+# ─── Test Artifacts ──────────────────────────────────────────
+tests/integration
+tests/unit
+htmlcov
+coverage.xml
+.coverage
+
+# ─── Build Script Outputs ────────────────────────────────────
+*.log
+/tmp
+
+# ─── Keep these (required by Dockerfiles) ────────────────────
+# !infra/docker/          — requirements, Dockerfiles, entrypoints
+# !src/                   — Python application code
+# !.kiro/specs/           — spec templates (used by strands-agent)
+# !docs/templates/        — factory templates
+# !scripts/               — workspace setup scripts

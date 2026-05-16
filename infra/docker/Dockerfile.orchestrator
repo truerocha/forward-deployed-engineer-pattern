@@ -1,4 +1,17 @@
-FROM python:3.12-slim AS base
+# ═══════════════════════════════════════════════════════════════
+# Dockerfile.orchestrator — Multi-Stage Build for Distributed Orchestrator
+#
+# The orchestrator dispatches ECS RunTask for squad agents and manages
+# the distributed workflow lifecycle (ADR-020).
+#
+# Stage 1 (deps): Install Python dependencies → highly cacheable
+# Stage 2 (app): Copy orchestration + agent code
+# Stage 3 (runtime): Final slim image with non-root user + OCI labels
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Stage 1: Dependencies ───────────────────────────────────────────────
+FROM python:3.12-slim AS deps
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,22 +20,45 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY infra/docker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy orchestration layer (src/core/orchestration/)
+# ─── Stage 2: Application Code ───────────────────────────────────────────
+FROM deps AS app
+
+# Orchestration layer (src/core/orchestration/, src/core/a2a/)
 COPY src/core/ /app/src/core/
 COPY src/__init__.py /app/src/__init__.py
 
-# Copy the monolith agents layer (needed for squad_prompts, tools, etc.)
+# Monolith agents layer (needed for squad_prompts, tools, etc.)
 COPY infra/docker/agents/ /app/agents/
 
-# Copy orchestrator entrypoint
+# Orchestrator entrypoint
 COPY infra/docker/orchestrator_entrypoint.py .
 
-# Copy factory template artifacts
+# Factory template artifacts
 COPY .kiro/ /app/.kiro/
 COPY docs/templates/ /app/docs/templates/
+
+# ─── Stage 3: Runtime ────────────────────────────────────────────────────
+FROM app AS runtime
+
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
+LABEL org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}" \
+      org.opencontainers.image.source="https://github.com/truerocha/forward-deployed-engineer-pattern" \
+      org.opencontainers.image.title="fde-orchestrator" \
+      org.opencontainers.image.description="FDE Code Factory — Distributed Squad Orchestrator" \
+      com.fde.component="orchestrator" \
+      com.fde.pipeline="distributed"
+
+ENV FDE_IMAGE_SHA="${GIT_SHA}" \
+    FDE_IMAGE_BUILT_AT="${BUILD_TIME}"
 
 RUN useradd -m -s /bin/bash orchestrator
 USER orchestrator
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+
 ENTRYPOINT ["python3", "orchestrator_entrypoint.py"]
