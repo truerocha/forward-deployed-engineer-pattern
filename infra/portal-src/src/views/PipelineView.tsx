@@ -1,7 +1,7 @@
 /**
  * PipelineView — Task Pipeline using Cloudscape Table + Container pattern.
  */
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
@@ -12,12 +12,21 @@ import Link from '@cloudscape-design/components/link';
 import Box from '@cloudscape-design/components/box';
 import ProgressBar from '@cloudscape-design/components/progress-bar';
 import ColumnLayout from '@cloudscape-design/components/column-layout';
+import Pagination from '@cloudscape-design/components/pagination';
+import Select from '@cloudscape-design/components/select';
 
 import { useTranslation } from 'react-i18next';
 
 interface PipelineViewProps {
   tasks: any[];
   metrics: any;
+  pagination?: {
+    page_size: number;
+    total_count: number;
+    has_more: boolean;
+    next_token: string | null;
+  };
+  onPageChange?: (pageSize: number, nextToken?: string) => void;
 }
 
 function getTaskStatus(task: any): { type: 'success' | 'error' | 'warning' | 'in-progress' | 'stopped' | 'pending'; text: string } {
@@ -89,8 +98,43 @@ const columnDefinitions: TableProps.ColumnDefinition<any>[] = [
   },
 ];
 
-export const PipelineView: React.FC<PipelineViewProps> = ({ tasks, metrics }) => {
+export const PipelineView: React.FC<PipelineViewProps> = ({ tasks, metrics, pagination, onPageChange }) => {
   const { t } = useTranslation();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(pagination?.page_size || 20);
+
+  // Track pagination tokens per page for back-navigation
+  const [pageTokens, setPageTokens] = useState<Record<number, string | undefined>>({ 1: undefined });
+
+  const handlePageChange = useCallback((detail: { currentPageIndex: number }) => {
+    const newPage = detail.currentPageIndex;
+    setCurrentPage(newPage);
+
+    if (onPageChange) {
+      const token = pageTokens[newPage];
+      onPageChange(pageSize, token);
+    }
+  }, [onPageChange, pageSize, pageTokens]);
+
+  // Store next_token for the next page when pagination data arrives
+  React.useEffect(() => {
+    if (pagination?.next_token && pagination.has_more) {
+      setPageTokens(prev => ({ ...prev, [currentPage + 1]: pagination.next_token! }));
+    }
+  }, [pagination, currentPage]);
+
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setPageTokens({ 1: undefined });
+    if (onPageChange) {
+      onPageChange(newSize, undefined);
+    }
+  }, [onPageChange]);
+
+  const totalPages = pagination
+    ? Math.ceil(pagination.total_count / pagination.page_size) || 1
+    : 1;
 
   return (
     <SpaceBetween size="l">
@@ -122,7 +166,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ tasks, metrics }) =>
         </ColumnLayout>
       </Container>
 
-      {/* Task table */}
+      {/* Task table with pagination */}
       <Table
         columnDefinitions={columnDefinitions}
         items={tasks}
@@ -130,11 +174,35 @@ export const PipelineView: React.FC<PipelineViewProps> = ({ tasks, metrics }) =>
         header={
           <Header
             variant="h2"
-            counter={`(${tasks.length})`}
+            counter={pagination ? `(${pagination.total_count})` : `(${tasks.length})`}
             description={t('pipeline.subtitle')}
+            actions={
+              <SpaceBetween direction="horizontal" size="xs">
+                <Select
+                  selectedOption={{ label: `${pageSize} per page`, value: String(pageSize) }}
+                  onChange={({ detail }) => handlePageSizeChange(Number(detail.selectedOption.value))}
+                  options={[
+                    { label: '10 per page', value: '10' },
+                    { label: '20 per page', value: '20' },
+                    { label: '50 per page', value: '50' },
+                    { label: '100 per page', value: '100' },
+                  ]}
+                />
+              </SpaceBetween>
+            }
           >
             {t('pipeline.title')}
           </Header>
+        }
+        pagination={
+          pagination ? (
+            <Pagination
+              currentPageIndex={currentPage}
+              pagesCount={totalPages}
+              openEnd={pagination.has_more}
+              onChange={({ detail }) => handlePageChange(detail)}
+            />
+          ) : undefined
         }
         empty={
           <Box margin={{ vertical: 'xs' }} textAlign="center" color="inherit">

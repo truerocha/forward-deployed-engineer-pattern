@@ -64,6 +64,8 @@ def handler(event, context):
         return _handle_registries(event, context)
     if "/status/metrics" in path:
         return _handle_metrics(event, context)
+    if "/status/history" in path:
+        return _handle_history(event, context)
     if "/reasoning" in path:
         return _handle_reasoning(event, context)
     return _handle_tasks(event, context)
@@ -111,6 +113,157 @@ def _handle_reasoning(event, context):
                 "total": len(gate_events),
                 "passed": gate_passed,
                 "failed": gate_failed,
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return _response(200, body)
+
+    except Exception as e:
+        return _response(500, {"error": "Internal server error"})
+
+
+def _handle_history(event, context):
+    """GET /status/history — Historical task data with extended lookback.
+
+    Provides paginated access to historical pipeline activity beyond the default
+    7-day window. Supports up to 90 days of history from DynamoDB, and references
+    S3-archived data for older records.
+
+    Query parameters:
+      ?days=30          — lookback window (default 30, max 90)
+      ?page_size=20     — items per page (default 20, max 100)
+      ?next_token=...   — cursor for next page
+      ?repo=owner/repo  — project filtering
+      ?status=COMPLETED — filter by terminal status (COMPLETED, FAILED, DEAD_LETTER)
+
+    Response provides:
+      - Paginated historical tasks (summary view, no events array)
+      - Aggregated statistics per time period
+      - S3 archive reference for data older than TTL
+    """
+    try:
+        params = event.get("queryStringParameters") or {}
+        days_back = min(int(params.get("days", "30")), 90)
+        page_size = min(int(params.get("page_size", "20")), 100)
+        next_token = params.get("next_token", "")
+        repo_filter = params.get("repo", "")
+        status_filter = params.get("status", "")
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
+
+        items = []
+        last_evaluated_key = None
+
+        if status_filter:
+            # Use GSI for efficient status-based historical queries
+            query_kwargs = {
+                "IndexName": "status-created-index",
+                "KeyConditionExpression": Key("status").eq(status_filter) & Key("created_at").gte(cutoff),
+                "ScanIndexForward": False,
+                "Limit": page_size + 5,  # Slight over-fetch for repo filtering
+            }
+            if next_token:
+                query_kwargs["ExclusiveStartKey"] = _decode_pagination_token(next_token)
+
+            response = task_table.query(**query_kwargs)
+            items = response.get("Items", [])
+            last_evaluated_key = response.get("LastEvaluatedKey")
+        else:
+            # Scan with time filter for all-status historical view
+            scan_kwargs = {
+                "FilterExpression": Attr("created_at").gte(cutoff),
+                "Limit": page_size * 3,
+            }
+            if next_token:
+                scan_kwargs["ExclusiveStartKey"] = _decode_pagination_token(next_token)
+
+            response = task_table.scan(**scan_kwargs)
+            items = response.get("Items", [])
+            last_evaluated_key = response.get("LastEvaluatedKey")
+
+        # Apply repo filter
+        if repo_filter:
+            items = [i for i in items if i.get("repo", "") == repo_filter]
+
+        # Build lightweight historical task summaries (no events array — saves bandwidth)
+        history_tasks = []
+        for item in sorted(items, key=lambda x: x.get("created_at", ""), reverse=True)[:page_size]:
+            history_tasks.append({
+                "task_id": item.get("task_id", ""),
+                "title": item.get("title", item.get("task_id", "Unknown")),
+                "status": _map_status(item.get("status", "PENDING")),
+                "repo": item.get("repo", ""),
+                "source": item.get("source", ""),
+                "priority": item.get("priority", "P2"),
+                "duration_ms": int(item.get("duration_ms", 0)),
+                "created_at": item.get("created_at", ""),
+                "updated_at": item.get("updated_at", ""),
+                "issue_url": item.get("issue_url", ""),
+                "pr_url": item.get("pr_url", ""),
+                "current_stage": item.get("current_stage", ""),
+                "event_count": len(item.get("events", [])),
+                "has_reasoning": len(item.get("events", [])) > 0,
+            })
+
+        # Compute period aggregations for the history view
+        now = datetime.now(timezone.utc)
+        periods = {
+            "last_7d": {"completed": 0, "failed": 0, "total": 0},
+            "last_30d": {"completed": 0, "failed": 0, "total": 0},
+            "last_90d": {"completed": 0, "failed": 0, "total": 0},
+        }
+        cutoff_7d = (now - timedelta(days=7)).isoformat()
+        cutoff_30d = (now - timedelta(days=30)).isoformat()
+
+        for item in items:
+            created = item.get("created_at", "")
+            status = item.get("status", "")
+            if created >= cutoff_7d:
+                periods["last_7d"]["total"] += 1
+                if status == "COMPLETED":
+                    periods["last_7d"]["completed"] += 1
+                elif status in ("FAILED", "DEAD_LETTER"):
+                    periods["last_7d"]["failed"] += 1
+            if created >= cutoff_30d:
+                periods["last_30d"]["total"] += 1
+                if status == "COMPLETED":
+                    periods["last_30d"]["completed"] += 1
+                elif status in ("FAILED", "DEAD_LETTER"):
+                    periods["last_30d"]["failed"] += 1
+            periods["last_90d"]["total"] += 1
+            if status == "COMPLETED":
+                periods["last_90d"]["completed"] += 1
+            elif status in ("FAILED", "DEAD_LETTER"):
+                periods["last_90d"]["failed"] += 1
+
+        # Pagination token for next page
+        has_more = last_evaluated_key is not None or len(items) > page_size
+        response_next_token = _encode_pagination_token(last_evaluated_key) if last_evaluated_key else None
+
+        # S3 archive reference — data older than DynamoDB TTL lives here
+        s3_bucket = os.environ.get("ARTIFACTS_BUCKET", "")
+        archive_prefix = "history/tasks/"
+
+        body = {
+            "tasks": history_tasks,
+            "pagination": {
+                "page_size": page_size,
+                "total_count": len(items),
+                "has_more": has_more,
+                "next_token": response_next_token,
+            },
+            "periods": periods,
+            "archive": {
+                "s3_bucket": s3_bucket,
+                "prefix": archive_prefix,
+                "ttl_days": 90,
+                "note": "Tasks older than 90 days are archived to S3. Use /status/history?days=90 for max DynamoDB range.",
+            },
+            "filters": {
+                "repo": repo_filter,
+                "status": status_filter,
+                "days": days_back,
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -211,30 +364,66 @@ def _query_metrics_section(project_id: str, prefix: str, limit: int) -> dict | N
 def _handle_tasks(event, context):
     """GET /status/tasks — Full dashboard payload with agent assignment.
 
-    Supports query parameter ?repo=owner/repo for project filtering.
+    Supports query parameters:
+      ?repo=owner/repo  — project filtering
+      ?days=7           — lookback window (default 7)
+      ?page_size=20     — items per page (default 20, max 100)
+      ?next_token=...   — cursor for next page (base64-encoded DDB LastEvaluatedKey)
+      ?status=RUNNING   — filter by task status (optional)
+
+    Response includes pagination metadata:
+      pagination.next_token  — pass as next_token to get next page (null if last page)
+      pagination.page_size   — current page size
+      pagination.total_count — total items matching filters (approximate)
+      pagination.has_more    — boolean indicating more pages exist
     """
     try:
-        # Extract repo filter from query parameters
+        # Extract query parameters
         params = event.get("queryStringParameters") or {}
         repo_filter = params.get("repo", "")
         days_back = int(params.get("days", "7"))  # Default 7 days of history
+        page_size = min(int(params.get("page_size", "20")), 100)  # Max 100 per page
+        next_token = params.get("next_token", "")
+        status_filter = params.get("status", "")
 
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
 
-        # Fetch tasks — use paginated scan to avoid Limit truncation
-        # DDB Limit applies BEFORE FilterExpression, so Limit=50 could miss items.
-        # Paginate to get all items within the time window.
+        # Fetch tasks — use GSI for efficient pagination when status filter is provided
         items = []
-        scan_kwargs = {
-            "FilterExpression": Attr("created_at").gte(cutoff),
-        }
-        while True:
-            task_response = task_table.scan(**scan_kwargs)
-            items.extend(task_response.get("Items", []))
-            # Stop if we have enough or no more pages
-            if len(items) >= 100 or "LastEvaluatedKey" not in task_response:
-                break
-            scan_kwargs["ExclusiveStartKey"] = task_response["LastEvaluatedKey"]
+        last_evaluated_key = None
+
+        if status_filter:
+            # Use status-created-index GSI for efficient filtered queries
+            query_kwargs = {
+                "IndexName": "status-created-index",
+                "KeyConditionExpression": Key("status").eq(status_filter) & Key("created_at").gte(cutoff),
+                "ScanIndexForward": False,  # Newest first
+                "Limit": page_size * 3,  # Over-fetch to account for deduplication
+            }
+            if next_token:
+                query_kwargs["ExclusiveStartKey"] = _decode_pagination_token(next_token)
+
+            task_response = task_table.query(**query_kwargs)
+            items = task_response.get("Items", [])
+            last_evaluated_key = task_response.get("LastEvaluatedKey")
+        else:
+            # Full scan with time-window filter — paginate internally
+            # Over-fetch to allow deduplication and still fill the page
+            fetch_limit = page_size * 5  # Account for issue-centric dedup
+            scan_kwargs = {
+                "FilterExpression": Attr("created_at").gte(cutoff),
+            }
+            if next_token:
+                scan_kwargs["ExclusiveStartKey"] = _decode_pagination_token(next_token)
+
+            while True:
+                task_response = task_table.scan(**scan_kwargs)
+                items.extend(task_response.get("Items", []))
+                last_evaluated_key = task_response.get("LastEvaluatedKey")
+                # Stop if we have enough or no more pages
+                if len(items) >= fetch_limit or "LastEvaluatedKey" not in task_response:
+                    break
+                scan_kwargs["ExclusiveStartKey"] = task_response["LastEvaluatedKey"]
 
         # Apply repo filter if specified
         if repo_filter:
@@ -393,6 +582,24 @@ def _handle_tasks(event, context):
         # Sort final list by created_at descending
         deduplicated_tasks.sort(key=lambda t: t.get("created_at", ""), reverse=True)
 
+        # Apply pagination: slice to page_size and compute next_token
+        total_count = len(deduplicated_tasks)
+        paginated_tasks = deduplicated_tasks[:page_size]
+        has_more = total_count > page_size or last_evaluated_key is not None
+
+        # Compute the pagination token for the next page
+        # If we have more deduplicated items than page_size, use the last item's key
+        # If DDB returned a LastEvaluatedKey, encode it for the client
+        response_next_token = None
+        if has_more and last_evaluated_key:
+            response_next_token = _encode_pagination_token(last_evaluated_key)
+        elif total_count > page_size:
+            # Create a synthetic token from the last returned item's task_id + created_at
+            last_item = paginated_tasks[-1] if paginated_tasks else None
+            if last_item:
+                synthetic_key = {"task_id": {"S": last_item["task_id"]}}
+                response_next_token = _encode_pagination_token(synthetic_key)
+
         body = {
             "metrics": {
                 "active": active,
@@ -407,7 +614,13 @@ def _handle_tasks(event, context):
                 "dispatch_stuck_task_ids": [t.get("task_id", "") for t in dispatch_stuck[:5]],
             },
             "dora": _compute_dora_summary(items),
-            "tasks": deduplicated_tasks[:20],
+            "tasks": paginated_tasks,
+            "pagination": {
+                "page_size": page_size,
+                "total_count": total_count,
+                "has_more": has_more,
+                "next_token": response_next_token,
+            },
             "agents": _build_agent_summary(agents),
             "projects": _extract_projects(items),
             "repo_filter": repo_filter,
@@ -1241,6 +1454,23 @@ def _handle_capacity(event, context):
 
     except Exception as e:
         return _response(500, {"error": "Internal server error"})
+
+
+def _encode_pagination_token(last_evaluated_key: dict) -> str:
+    """Encode a DynamoDB LastEvaluatedKey as a URL-safe base64 pagination token."""
+    import base64
+    token_json = json.dumps(last_evaluated_key, default=str)
+    return base64.urlsafe_b64encode(token_json.encode()).decode()
+
+
+def _decode_pagination_token(token: str) -> dict:
+    """Decode a pagination token back to a DynamoDB ExclusiveStartKey."""
+    import base64
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        return json.loads(decoded)
+    except Exception:
+        return {}
 
 
 def _response(status_code: int, body: dict) -> dict:

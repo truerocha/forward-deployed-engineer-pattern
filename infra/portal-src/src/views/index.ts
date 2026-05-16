@@ -5,3 +5,4 @@ export { GatesView } from './GatesView';
 export { HealthView } from './HealthView';
 export { RegistriesView } from './RegistriesView';
 export { ObservabilityView } from './ObservabilityView';
+export { HistoryView } from './HistoryView';

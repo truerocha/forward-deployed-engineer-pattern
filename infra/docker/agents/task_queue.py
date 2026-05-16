@@ -40,12 +40,17 @@ def enqueue_task(title: str, spec_content: str, source: str = "direct",
     task_id = f"TASK-{uuid.uuid4().hex[:8]}"
     now = _now()
     status = "PENDING" if depends_on else "READY"
+
+    # TTL: expire after 90 days for automatic archival to S3
+    ttl_expire_at = int(datetime.now(timezone.utc).timestamp()) + (90 * 86400)
+
     item = {
         "task_id": task_id, "title": title, "spec_content": spec_content,
         "spec_path": spec_path, "source": source, "issue_id": issue_id,
         "status": status, "priority": priority, "depends_on": depends_on or [],
         "assigned_agent": "", "result": "", "error": "",
         "created_at": now, "updated_at": now,
+        "ttl_expire_at": ttl_expire_at,
     }
     table.put_item(Item=item)
     logger.info("Enqueued: %s (%s) status=%s deps=%s", task_id, title, status, depends_on or "none")

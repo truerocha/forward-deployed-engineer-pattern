@@ -57,6 +57,12 @@ export interface DashboardData {
     change_failure_rate_pct: number;
   } | null;
   tasks: Task[];
+  pagination?: {
+    page_size: number;
+    total_count: number;
+    has_more: boolean;
+    next_token: string | null;
+  };
   agents: { instance_id: string; name: string; task_id: string; status: string; started_at: string; execution_time_ms: number }[];
   projects: { repo: string; display_name: string; task_count: number; active: number }[];
 }
@@ -65,13 +71,16 @@ function getApiUrl(): string {
   return document.querySelector('meta[name="factory-api-url"]')?.getAttribute('content') || '';
 }
 
-export async function fetchDashboardData(repoFilter?: string): Promise<DashboardData | null> {
+export async function fetchDashboardData(repoFilter?: string, pageSize?: number, nextToken?: string): Promise<DashboardData | null> {
   const api = getApiUrl();
   if (!api) return null;
 
-  const url = repoFilter
-    ? `${api}/status/tasks?repo=${encodeURIComponent(repoFilter)}`
-    : `${api}/status/tasks`;
+  const params = new URLSearchParams();
+  if (repoFilter) params.set('repo', repoFilter);
+  if (pageSize) params.set('page_size', String(pageSize));
+  if (nextToken) params.set('next_token', nextToken);
+
+  const url = `${api}/status/tasks${params.toString() ? '?' + params.toString() : ''}`;
 
   try {
     const r = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -143,6 +152,79 @@ export async function fetchCapacity(): Promise<CapacityData | null> {
 
   try {
     const r = await fetch(`${api}/status/capacity`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+
+export interface HistoryTask {
+  task_id: string;
+  title: string;
+  status: string;
+  repo: string;
+  source: string;
+  priority: string;
+  duration_ms: number;
+  created_at: string;
+  updated_at: string;
+  issue_url: string;
+  pr_url: string;
+  current_stage: string;
+  event_count: number;
+  has_reasoning: boolean;
+}
+
+export interface HistoryData {
+  tasks: HistoryTask[];
+  pagination: {
+    page_size: number;
+    total_count: number;
+    has_more: boolean;
+    next_token: string | null;
+  };
+  periods: {
+    last_7d: { completed: number; failed: number; total: number };
+    last_30d: { completed: number; failed: number; total: number };
+    last_90d: { completed: number; failed: number; total: number };
+  };
+  archive: {
+    s3_bucket: string;
+    prefix: string;
+    ttl_days: number;
+    note: string;
+  };
+  filters: {
+    repo: string;
+    status: string;
+    days: number;
+  };
+  timestamp: string;
+}
+
+export async function fetchHistory(options?: {
+  days?: number;
+  pageSize?: number;
+  nextToken?: string;
+  repo?: string;
+  status?: string;
+}): Promise<HistoryData | null> {
+  const api = getApiUrl();
+  if (!api) return null;
+
+  const params = new URLSearchParams();
+  if (options?.days) params.set('days', String(options.days));
+  if (options?.pageSize) params.set('page_size', String(options.pageSize));
+  if (options?.nextToken) params.set('next_token', options.nextToken);
+  if (options?.repo) params.set('repo', options.repo);
+  if (options?.status) params.set('status', options.status);
+
+  const url = `${api}/status/history${params.toString() ? '?' + params.toString() : ''}`;
+
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
     if (!r.ok) return null;
     return await r.json();
   } catch {
