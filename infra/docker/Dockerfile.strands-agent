@@ -14,6 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY infra/docker/agents/ /app/agents/
 COPY infra/docker/agent_entrypoint.py .
 
+# Copy A2A protocol layer (SquadBridge, orchestrator, contracts)
+# Required for Conductor → A2A delegation via squad_bridge.should_use_a2a()
+COPY src/core/ /app/src/core/
+COPY src/__init__.py /app/src/__init__.py
+
 # Copy factory template artifacts
 COPY .kiro/ /app/.kiro/
 COPY docs/templates/ /app/docs/templates/

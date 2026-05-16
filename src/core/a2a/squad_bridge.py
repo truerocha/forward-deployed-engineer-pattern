@@ -57,6 +57,11 @@ SQUAD_ROLE_TO_A2A_AGENT: dict[str, str] = {
     # Research/reconnaissance maps to Pesquisa agent
     "reconnaissance": "fde-research-agent",
     "researcher": "fde-research-agent",
+    # NOTE: swe-code-context-agent is mapped here for completeness but
+    # should_use_a2a() will typically return False for this role because
+    # it's a fast in-process lookup (model tier: fast, cost weight: 0.3).
+    # The mapping exists so that IF a stage explicitly sets a2a_eligible=True,
+    # the bridge knows which A2A agent handles code context queries.
     "swe-code-context-agent": "fde-research-agent",
     # Engineering/implementation maps to Escrita agent
     "engineering": "fde-engineering-agent",
@@ -292,18 +297,50 @@ class SquadBridge:
     def get_a2a_health(self) -> dict[str, Any]:
         """Get health status of all A2A agents (for portal/monitoring).
 
+        Performs real HTTP health checks against the Cloud Map endpoints.
+        Falls back to "unreachable" if the agent is not responding (expected
+        when running outside the VPC, e.g., local dev).
+
         Returns:
             Dict with agent names as keys and health info as values.
         """
+        import httpx
+
         health = {}
         for name, card in self._available_agents.items():
-            health[name] = {
-                "endpoint": card["url"],
+            endpoint = card["url"]
+            agent_health: dict[str, Any] = {
+                "endpoint": endpoint,
                 "version": card["version"],
                 "model_tier": card["x-fde"]["model_tier"],
                 "capabilities": card["capabilities"]["tasks"],
-                "status": "configured",  # Would be "healthy" after ping
+                "status": "unknown",
             }
+
+            # Attempt real health check via agent-card endpoint
+            try:
+                response = httpx.get(
+                    f"{endpoint}/.well-known/agent-card.json",
+                    timeout=5.0,
+                )
+                if response.status_code == 200:
+                    agent_health["status"] = "healthy"
+                    agent_health["response_ms"] = int(response.elapsed.total_seconds() * 1000)
+                else:
+                    agent_health["status"] = "degraded"
+                    agent_health["http_status"] = response.status_code
+            except httpx.ConnectError:
+                agent_health["status"] = "unreachable"
+                agent_health["detail"] = "Connection refused — service may not be running"
+            except httpx.TimeoutException:
+                agent_health["status"] = "timeout"
+                agent_health["detail"] = "Health check timed out (>5s)"
+            except Exception as e:
+                agent_health["status"] = "error"
+                agent_health["detail"] = str(e)[:100]
+
+            health[name] = agent_health
+
         return health
 
     @staticmethod
