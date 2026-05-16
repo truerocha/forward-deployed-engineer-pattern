@@ -89,6 +89,18 @@ resource "aws_iam_role_policy" "dashboard_status_policy" {
         Resource = ["*"]
       },
       {
+        # SRE Readiness: ECS task listing, ECR image metadata, CloudWatch Logs
+        Effect = "Allow"
+        Action = [
+          "ecs:ListTasks",
+          "ecs:DescribeTasks",
+          "ecr:DescribeImages",
+          "logs:FilterLogEvents",
+          "lambda:GetFunctionConfiguration"
+        ]
+        Resource = ["*"]
+      },
+      {
         Effect   = "Allow"
         Action   = ["events:ListRules"]
         Resource = ["*"]
@@ -144,6 +156,12 @@ resource "aws_apigatewayv2_route" "dashboard_reasoning" {
 resource "aws_apigatewayv2_route" "dashboard_capacity" {
   api_id    = aws_apigatewayv2_api.webhook.id
   route_key = "GET /status/capacity"
+  target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
+}
+
+resource "aws_apigatewayv2_route" "dashboard_sre_readiness" {
+  api_id    = aws_apigatewayv2_api.webhook.id
+  route_key = "GET /status/sre-readiness"
   target    = "integrations/${aws_apigatewayv2_integration.dashboard_status.id}"
 }
 
