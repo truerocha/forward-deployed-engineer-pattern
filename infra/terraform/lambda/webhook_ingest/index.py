@@ -781,17 +781,25 @@ def _extract_priority(labels: list) -> str:
 def _find_existing_task(table, issue_id: str) -> dict | None:
     """Check if a task already exists for this issue_id (deduplication).
 
-    Scans READY, IN_PROGRESS, RUNNING, and DISPATCHED tasks. If found,
-    returns the existing record to prevent duplicate entries.
+    Scans READY, IN_PROGRESS, RUNNING, DISPATCHED, and recently-FAILED tasks.
+    If found in an active state, returns the existing record to prevent duplicates.
+    If found in FAILED state within the cooldown window, also blocks (prevents
+    retry storms when the same issue keeps failing).
 
     Stale task TTL: If a task has been in a non-terminal state for >30 minutes
     without an updated_at change, it's considered stale and won't block new tasks.
+
+    Failed task cooldown: If a task FAILED less than 15 minutes ago for the same
+    issue, block new task creation (prevents retry storm from repeated webhooks).
+    After 15 minutes, allow retry (user may have fixed the issue content).
     """
     if not issue_id:
         return None
 
+    FAILED_COOLDOWN_MINUTES = 15
+
     try:
-        # Scan is acceptable here — table is small (< 50 active tasks)
+        # Check active tasks (non-terminal states)
         response = table.scan(
             FilterExpression="issue_id = :iid AND #s IN (:s1, :s2, :s3, :s4)",
             ExpressionAttributeNames={"#s": "status"},
@@ -805,10 +813,7 @@ def _find_existing_task(table, issue_id: str) -> dict | None:
             Limit=5,
         )
         items = response.get("Items", [])
-        if not items:
-            return None
 
-        # Check staleness: if task hasn't been updated in 30+ minutes, allow override
         now = datetime.now(timezone.utc)
         stale_threshold_minutes = 30
 
@@ -828,6 +833,33 @@ def _find_existing_task(table, issue_id: str) -> dict | None:
                     pass
             # Non-stale active task found — block duplicate
             return item
+
+        # Check recently-FAILED tasks (cooldown prevents retry storm)
+        failed_response = table.scan(
+            FilterExpression="issue_id = :iid AND #s = :failed",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={
+                ":iid": issue_id,
+                ":failed": "FAILED",
+            },
+            Limit=5,
+        )
+        failed_items = failed_response.get("Items", [])
+
+        for item in failed_items:
+            updated_at_str = item.get("updated_at", item.get("created_at", ""))
+            if updated_at_str:
+                try:
+                    updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                    age_minutes = (now - updated_at).total_seconds() / 60
+                    if age_minutes < FAILED_COOLDOWN_MINUTES:
+                        logger.info(
+                            "Task %s for issue %s FAILED %.0f min ago (cooldown=%d min) — blocking retry storm",
+                            item.get("task_id"), issue_id, age_minutes, FAILED_COOLDOWN_MINUTES,
+                        )
+                        return item  # Block — too soon to retry
+                except (ValueError, TypeError):
+                    pass
 
         return None
     except Exception as e:
