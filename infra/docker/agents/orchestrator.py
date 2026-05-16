@@ -545,6 +545,14 @@ class Orchestrator:
                     "DAG orphans and leaked slots possible: %s",
                     task_id, e,
                 )
+
+            # Trigger knowledge graph reindex for changed files (non-blocking).
+            # The ECS task role has Bedrock + S3 permissions via IAM policy.
+            # If reindex fails, it's non-critical — the graph is eventually consistent.
+            try:
+                self._trigger_knowledge_reindex(task_id, result)
+            except Exception as e:
+                logger.debug("Knowledge reindex skipped for %s: %s", task_id, e)
         elif result.get("status") in ("partial", "error"):
             try:
                 error_msg = result.get("pipeline", [{}])[-1].get("error", "Pipeline incomplete")
@@ -558,6 +566,59 @@ class Orchestrator:
                 )
 
         return result
+
+    def _trigger_knowledge_reindex(self, task_id: str, result: dict) -> None:
+        """Trigger incremental knowledge graph reindex for files changed by this task.
+
+        Non-blocking: failures are logged but don't affect task completion.
+        The ECS task role provides IAM permissions for Bedrock (embeddings)
+        and S3 (vector store persistence).
+
+        This ensures the knowledge graph stays current after each task completes,
+        enabling accurate semantic search and impact analysis for subsequent tasks.
+        """
+        try:
+            from src.core.knowledge.incremental_indexer import IncrementalIndexer
+        except ImportError:
+            logger.debug("Knowledge indexer not available in this environment")
+            return
+
+        # Extract changed files from the pipeline result
+        changed_files = []
+        pipeline_steps = result.get("pipeline", [])
+        for step in pipeline_steps:
+            files = step.get("files_changed", [])
+            if isinstance(files, list):
+                changed_files.extend(files)
+
+        if not changed_files:
+            logger.debug("No changed files to reindex for task %s", task_id)
+            return
+
+        # Get project context from the task
+        task = task_queue.get_task(task_id)
+        repo = task.get("repo", "unknown") if task else "unknown"
+        workspace_path = os.environ.get("WORKSPACE_PATH", "/workspace")
+
+        try:
+            indexer = IncrementalIndexer(
+                project_id=repo.replace("/", "-"),
+                workspace_path=workspace_path,
+            )
+            if not indexer.enabled:
+                logger.debug("Knowledge indexer disabled (no vector store configured)")
+                return
+
+            index_result = indexer.index_changed_files(changed_files)
+            logger.info(
+                "Knowledge graph reindexed for task %s: %d files processed, %d errors",
+                task_id,
+                index_result.files_processed,
+                len(index_result.errors),
+            )
+        except Exception as e:
+            # Non-blocking — knowledge graph is eventually consistent
+            logger.warning("Knowledge reindex failed for task %s: %s", task_id, str(e)[:200])
 
     @staticmethod
     def _attempt_rebase_retry(workspace: "WorkspaceContext") -> bool:

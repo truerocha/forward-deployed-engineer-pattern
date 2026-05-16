@@ -32,6 +32,7 @@ import { HealthView } from './views/HealthView';
 import { RegistriesView } from './views/RegistriesView';
 import { ObservabilityView } from './views/ObservabilityView';
 import { CostBreakdownView } from './views/CostBreakdownView';
+import { HistoryView } from './views/HistoryView';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -140,7 +141,7 @@ export default function App() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '') as AppView;
-      if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'cost', 'observability'].includes(hash)) {
+      if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'cost', 'observability', 'history'].includes(hash)) {
         setActiveView(hash);
       }
     };
@@ -182,6 +183,7 @@ export default function App() {
     { type: 'link', text: t('nav.health'), href: '#health' },
     { type: 'link', text: t('nav.catalog'), href: '#registries' },
     { type: 'divider' },
+    { type: 'link', text: 'History', href: '#history', info: <Badge color="grey">ACTIVITY</Badge> },
     { type: 'link', text: 'Observability', href: '#observability', info: <Badge color="blue">METRICS</Badge> },
     { type: 'link', text: 'Cost Breakdown', href: '#cost', info: <Badge color="grey">COST</Badge> },
   ];
@@ -190,7 +192,7 @@ export default function App() {
     event.preventDefault();
     const href = event.detail.href || '';
     const view = href.replace('#', '') as AppView;
-    if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'cost', 'observability'].includes(view)) {
+    if (['pipeline', 'agents', 'reasoning', 'gates', 'health', 'registries', 'cost', 'observability', 'history'].includes(view)) {
       changeView(view);
     }
   };
@@ -207,7 +209,23 @@ export default function App() {
   const renderContent = () => {
     switch (activeView) {
       case 'pipeline':
-        return <PipelineView tasks={tasks} metrics={metrics} />;
+        return (
+          <PipelineView
+            tasks={tasks}
+            metrics={metrics}
+            pagination={factoryData?.pagination}
+            onPageChange={(pageSize, nextToken) => {
+              // Re-fetch with pagination params
+              if (!API_URL) return;
+              const params = new URLSearchParams();
+              params.set('page_size', String(pageSize));
+              if (nextToken) params.set('next_token', nextToken);
+              fetch(`${API_URL}/status/tasks?${params.toString()}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => { if (data) setFactoryData(data); });
+            }}
+          />
+        );
       case 'agents':
         return <AgentsView agents={agents} />;
       case 'reasoning':
@@ -218,6 +236,8 @@ export default function App() {
         return <HealthView factoryData={factoryData} apiStatus={apiStatus} />;
       case 'registries':
         return <RegistriesView />;
+      case 'history':
+        return <HistoryView />;
       case 'cost':
         return <CostBreakdownView factoryData={factoryData} />;
       case 'observability':
@@ -229,7 +249,13 @@ export default function App() {
           />
         );
       default:
-        return <PipelineView tasks={tasks} metrics={metrics} />;
+        return (
+          <PipelineView
+            tasks={tasks}
+            metrics={metrics}
+            pagination={factoryData?.pagination}
+          />
+        );
     }
   };
 
@@ -241,6 +267,7 @@ export default function App() {
     gates: t('nav.gates'),
     health: t('nav.health'),
     registries: t('nav.catalog'),
+    history: 'History',
     cost: 'Cost Breakdown',
     observability: 'Observability',
   };

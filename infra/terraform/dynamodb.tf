@@ -52,6 +52,13 @@ resource "aws_dynamodb_table" "task_queue" {
     projection_type = "ALL"
   }
 
+  # TTL: Automatically expire tasks older than 90 days.
+  # Expired items are archived to S3 via DynamoDB Streams before deletion.
+  ttl {
+    attribute_name = "ttl_expire_at"
+    enabled        = true
+  }
+
   tags = { Component = "task-queue" }
 }
 

@@ -88,12 +88,13 @@ export const QualityGateCard: React.FC<QualityGateCardProps> = ({ data }) => {
 
         <SpaceBetween size="xs">
           {d.dimensions.map((dim) => (
-            <StatusIndicator
-              key={dim.name}
-              type={dim.passCount === dim.totalCount ? 'success' : dim.passCount / dim.totalCount >= 0.7 ? 'warning' : 'error'}
-            >
-              {dim.name}: {dim.passCount}/{dim.totalCount}
-            </StatusIndicator>
+            <div key={dim.name}>
+              <StatusIndicator
+                type={dim.passCount === dim.totalCount ? 'success' : dim.passCount / dim.totalCount >= 0.7 ? 'warning' : 'error'}
+              >
+                {dim.name}: {dim.passCount}/{dim.totalCount}
+              </StatusIndicator>
+            </div>
           ))}
         </SpaceBetween>
       </SpaceBetween>

@@ -93,14 +93,15 @@ export default function CapacityCard() {
               <Box color="text-status-inactive">No active repos</Box>
             ) : (
               data.concurrency.repos.map((repo) => (
-                <ProgressBar
-                  key={repo.repo}
-                  value={repo.utilization_pct}
-                  label={repo.repo.split('/').pop() || repo.repo}
-                  description={`${repo.active} / ${repo.max} slots`}
-                  status={repo.saturated ? 'error' : 'in-progress'}
-                  additionalInfo={repo.saturated ? 'Saturated — tasks queued' : undefined}
-                />
+                <div key={repo.repo}>
+                  <ProgressBar
+                    value={repo.utilization_pct}
+                    label={repo.repo.split('/').pop() || repo.repo}
+                    description={`${repo.active} / ${repo.max} slots`}
+                    status={repo.saturated ? 'error' : 'in-progress'}
+                    additionalInfo={repo.saturated ? 'Saturated — tasks queued' : undefined}
+                  />
+                </div>
               ))
             )}
           </SpaceBetween>
@@ -141,11 +142,13 @@ export default function CapacityCard() {
             <Box variant="h3" padding={{ bottom: 'xs' }}>Queued by Repo</Box>
             <SpaceBetween size="xs">
               {Object.entries(data.queue.by_repo).map(([repo, count]) => (
-                <Box key={repo}>
-                  <StatusIndicator type="warning">
-                    {repo.split('/').pop()}: {count} task{count > 1 ? 's' : ''} waiting
-                  </StatusIndicator>
-                </Box>
+                <div key={repo}>
+                  <Box>
+                    <StatusIndicator type="warning">
+                      {repo.split('/').pop()}: {(count as number)} task{(count as number) > 1 ? 's' : ''} waiting
+                    </StatusIndicator>
+                  </Box>
+                </div>
               ))}
             </SpaceBetween>
           </div>
