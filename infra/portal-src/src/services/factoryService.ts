@@ -160,6 +160,59 @@ export async function fetchCapacity(): Promise<CapacityData | null> {
 }
 
 
+export interface SreReadinessData {
+  circuit_breaker: {
+    state: 'closed' | 'open' | 'unknown';
+    orchestrator_ready: boolean;
+    last_change: string | null;
+    changed_by: string;
+    blast_radius: number;
+    detection_window_min: number;
+    error?: string;
+  };
+  reaper_health: {
+    last_run: string | null;
+    tasks_reaped: number;
+    tasks_redispatched: number;
+    counter_drift_corrections: number;
+    orchestrator_assessment: string;
+    actions: { ts: string; action: string; detail: string }[];
+    error?: string;
+  };
+  agent_readiness: {
+    task_def_version: string | null;
+    task_def_family?: string;
+    ecr_last_pushed: string | null;
+    ecr_image_tags?: string[];
+    fargate_capacity: string;
+    running_count?: number;
+    recent_exit_codes: { task_arn: string; exit_code: number; reason: string; stopped_at: string }[];
+    error?: string;
+  };
+  task_flow: {
+    status_distribution: Record<string, number>;
+    avg_ingested_duration_ms: number;
+    dispatch_to_start_p50_ms: number;
+    dispatch_to_start_p95_ms: number;
+    error?: string;
+  };
+  timestamp: string;
+}
+
+export async function fetchSreReadiness(): Promise<SreReadinessData | null> {
+  const api = getApiUrl();
+  if (!api) return null;
+
+  try {
+    const r = await fetch(`${api}/status/sre-readiness`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+
 export interface HistoryTask {
   task_id: string;
   title: string;
