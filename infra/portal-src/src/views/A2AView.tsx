@@ -24,6 +24,7 @@ import { A2ATopologyCard } from '../components/A2ATopologyCard';
 import { A2AResilienceCard } from '../components/A2AResilienceCard';
 import { A2AWorkflowCostCard } from '../components/A2AWorkflowCostCard';
 import { A2AContractInspectorCard } from '../components/A2AContractInspectorCard';
+import { A2ASquadCommunicationCard } from '../components/A2ASquadCommunicationCard';
 import { GoldenSignalsCard } from '../components/GoldenSignalsCard';
 import { PipelineHealthCard } from '../components/PipelineHealthCard';
 import { CognitiveAutonomyCard } from '../components/CognitiveAutonomyCard';
@@ -41,18 +42,20 @@ const A2A_PERSONA_CARDS: Record<string, string[]> = {
     'PipelineHealthCard',
   ],
   Engineer: [
+    'A2ASquadCommunicationCard',
     'A2AContractInspectorCard',
     'A2ATopologyCard',
     'A2AResilienceCard',
-    'CognitiveAutonomyCard',
   ],
   Architect: [
+    'A2ASquadCommunicationCard',
     'A2ATopologyCard',
     'A2AWorkflowCostCard',
     'CognitiveAutonomyCard',
   ],
   PM: [
     'A2AWorkflowCostCard',
+    'A2ASquadCommunicationCard',
     'A2AResilienceCard',
     'CognitiveAutonomyCard',
   ],
@@ -89,6 +92,18 @@ export const A2AView: React.FC<A2AViewProps> = ({ factoryData }) => {
         approvalRate={a2aData.approvalRate}
         totalWorkflows={a2aData.totalWorkflows}
         avgCostPerWorkflow={a2aData.avgCostPerWorkflow}
+      />
+    ),
+    A2ASquadCommunicationCard: (
+      <A2ASquadCommunicationCard
+        messages={a2aData.devFlowMessages}
+        reviewCycles={a2aData.reviewCycles}
+        workflowId={a2aData.latestWorkflow?.workflowId}
+        currentPhase={a2aData.latestWorkflow?.noAtual}
+        specTitle={a2aData.latestWorkflow?.specTitle}
+        totalDurationMs={a2aData.latestWorkflow?.totalDurationMs}
+        approvedAtAttempt={a2aData.latestWorkflow?.approvedAtAttempt}
+        maxAttempts={a2aData.latestWorkflow?.maxRetries || 3}
       />
     ),
     GoldenSignalsCard: (

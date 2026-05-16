@@ -63,6 +63,9 @@ def create_research_server(
 ):
     """Create and return the A2A research server instance.
 
+    Initializes distributed tracing and registers the explicit Agent Card
+    with full JSON Schema contracts for input/output validation.
+
     Args:
         host: Bind address (0.0.0.0 for container deployment).
         port: Port to listen on.
@@ -71,6 +74,15 @@ def create_research_server(
     Returns:
         Configured A2AServer instance (call .serve() to start).
     """
+    from src.core.a2a.agent_cards import PESQUISA_CARD
+    from src.core.a2a.observability import inicializar_tracing
+
+    # Initialize distributed tracing (OTel → ADOT → X-Ray)
+    inicializar_tracing(
+        nome_servico="fde-a2a-pesquisa",
+        environment=os.environ.get("ENVIRONMENT", "dev"),
+    )
+
     _model_id = model_id or os.environ.get(
         "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     )
@@ -96,19 +108,19 @@ def create_research_server(
             tools=tools,
         )
 
-        # Wrap in A2A Server
+        # Wrap in A2A Server with explicit Agent Card
         server = A2AServer(
             agent=research_agent,
             host=host,
             port=port,
-            name="fde-research-agent",
-            description="Specialized agent for factual data collection and research",
-            version="1.0.0",
+            name=PESQUISA_CARD["name"],
+            description=PESQUISA_CARD["description"],
+            version=PESQUISA_CARD["version"],
         )
 
         logger.info(
-            "Research A2A Server configured: %s:%d model=%s",
-            host, port, _model_id,
+            "Research A2A Server configured: %s:%d model=%s card=%s",
+            host, port, _model_id, PESQUISA_CARD["name"],
         )
         return server
 

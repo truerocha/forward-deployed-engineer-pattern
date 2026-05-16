@@ -84,7 +84,7 @@ Organism Ladder (complexity classification: O1-O5)
 |-----------|---------------|
 | **Parte 1: Fundacao** | Conductor IS the PEC's "Risk Inference Engine" for orchestration decisions |
 | **Parte 2: Cerebro Matematico** | Organism ladder feeds complexity signal to Conductor |
-| **Parte 3: Ecossistema de Dados** | Knowledge context from Pinecone/DynamoDB enriches Conductor input |
+| **Parte 3: Ecossistema de Dados** | Knowledge context from DynamoDB Knowledge Table + Titan Embeddings (vector search) enriches Conductor input |
 | **Parte 4: Orquestracao** | Conductor generates the Strands SOP-compatible workflow plan |
 | **Parte 5: Interface** | Conductor plans are visible in portal (topology visualization) |
 | **Parte 6: Governanca** | Recursive refinement IS the RCA loop for orchestration failures |

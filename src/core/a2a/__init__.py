@@ -9,6 +9,8 @@ Architecture:
   - The orchestrator consumes subagents via A2AAgent proxy (tool-based handoff)
   - DynamoDB provides checkpointing for fault-tolerant graph execution
   - AWS Cloud Map provides service discovery for ECS-deployed agents
+  - Agent Cards expose JSON Schema contracts for service discovery
+  - Squad Bridge connects A2A to the Conductor's dynamic squad composition
 
 Ref: docs/adr/ADR-034-a2a-protocol-strands-integration.md
 """
@@ -24,6 +26,21 @@ from src.core.a2a.state_manager import DynamoDBStateManager
 from src.core.a2a.workflow_graph import A2AWorkflowGraph, GrafoResiliente
 from src.core.a2a.resilience import ResilientStateManager, ErrorClassification, classify_error
 from src.core.a2a.observability import inicializar_tracing, trace_workflow_node, trace_a2a_invocation
+from src.core.a2a.agent_cards import (
+    AGENT_CARD_REGISTRY,
+    PESQUISA_CARD,
+    ESCRITA_CARD,
+    REVISAO_CARD,
+    get_card,
+    list_cards,
+)
+from src.core.a2a.orchestrator import SquadOrchestrator
+from src.core.a2a.squad_bridge import (
+    SquadBridge,
+    SQUAD_ROLE_TO_A2A_AGENT,
+    create_bridge,
+    get_a2a_capabilities_for_conductor,
+)
 
 __all__ = [
     # Contracts
@@ -38,6 +55,20 @@ __all__ = [
     # Workflow Graph
     "A2AWorkflowGraph",
     "GrafoResiliente",
+    # Orchestrator (production entrypoint)
+    "SquadOrchestrator",
+    # Agent Cards (service discovery)
+    "AGENT_CARD_REGISTRY",
+    "PESQUISA_CARD",
+    "ESCRITA_CARD",
+    "REVISAO_CARD",
+    "get_card",
+    "list_cards",
+    # Squad Bridge (Conductor integration)
+    "SquadBridge",
+    "SQUAD_ROLE_TO_A2A_AGENT",
+    "create_bridge",
+    "get_a2a_capabilities_for_conductor",
     # Resilience
     "ErrorClassification",
     "classify_error",

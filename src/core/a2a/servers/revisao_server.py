@@ -77,6 +77,9 @@ def create_review_server(
 ):
     """Create and return the A2A review server instance.
 
+    Initializes distributed tracing and registers the explicit Agent Card
+    with full JSON Schema contracts for input/output validation.
+
     Args:
         host: Bind address (0.0.0.0 for container deployment).
         port: Port to listen on.
@@ -85,6 +88,15 @@ def create_review_server(
     Returns:
         Configured A2AServer instance (call .serve() to start).
     """
+    from src.core.a2a.agent_cards import REVISAO_CARD
+    from src.core.a2a.observability import inicializar_tracing
+
+    # Initialize distributed tracing (OTel → ADOT → X-Ray)
+    inicializar_tracing(
+        nome_servico="fde-a2a-revisao",
+        environment=os.environ.get("ENVIRONMENT", "dev"),
+    )
+
     _model_id = model_id or os.environ.get(
         "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     )
@@ -107,18 +119,19 @@ def create_review_server(
             tools=[],  # Reviewer is pure reasoning — no tools needed
         )
 
+        # Wrap in A2A Server with explicit Agent Card
         server = A2AServer(
             agent=review_agent,
             host=host,
             port=port,
-            name="fde-review-agent",
-            description="Specialized agent for quality assessment and structured feedback",
-            version="1.0.0",
+            name=REVISAO_CARD["name"],
+            description=REVISAO_CARD["description"],
+            version=REVISAO_CARD["version"],
         )
 
         logger.info(
-            "Review A2A Server configured: %s:%d model=%s",
-            host, port, _model_id,
+            "Review A2A Server configured: %s:%d model=%s card=%s",
+            host, port, _model_id, REVISAO_CARD["name"],
         )
         return server
 
