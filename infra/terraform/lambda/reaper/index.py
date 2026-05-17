@@ -259,10 +259,14 @@ def _find_redispatch_eligible(table) -> list:
             if task_id.startswith("CONFIG#") or task_id.startswith("COUNTER#"):
                 continue
 
-            # Only target tasks stuck in early stage
+            # Eligible if: early stage OR DISPATCHED without started_at (container never ran)
+            # Ref: TASK-f49dbb7c — container died before writing started_at, task stuck.
+            # Mitigates Decision 1 Risk R3: ALM rule failure leaves task DISPATCHED.
             current_stage = item.get("current_stage", "")
-            if current_stage not in ("ingested", ""):
-                continue
+            has_started = bool(item.get("started_at", ""))
+
+            if current_stage not in ("ingested", "") and has_started:
+                continue  # Late-stage task with started_at — handled by Phase 1 reaper
 
             # Check age — must be older than 10 min to avoid racing with normal dispatch
             created_at = item.get("created_at", "")
