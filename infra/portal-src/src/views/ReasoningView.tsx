@@ -21,7 +21,8 @@ import Box from '@cloudscape-design/components/box';
 import Badge from '@cloudscape-design/components/badge';
 import Container from '@cloudscape-design/components/container';
 import ExpandableSection from '@cloudscape-design/components/expandable-section';
-import TreeView, { TreeViewProps } from '@cloudscape-design/components/tree-view';
+import TreeView from '@cloudscape-design/components/tree-view';
+import Icon from '@cloudscape-design/components/icon';
 
 import { LogEntry } from '../types';
 import { useTranslation } from 'react-i18next';
@@ -155,17 +156,12 @@ const columnDefinitions: TableProps.ColumnDefinition<LogEntry>[] = [
   },
 ];
 
-function buildTreeItems(logs: LogEntry[]): TreeViewProps.Item[] {
+function buildTreeData(logs: LogEntry[]) {
   // Group logs by detected phase
-  const phases: Record<string, LogEntry[]> = {
-    'Intake': [],
-    'Workspace': [],
-    'Reconnaissance': [],
-    'Engineering': [],
-    'Review': [],
-    'Completion': [],
-    'Other': [],
-  };
+  const phases: Record<string, LogEntry[]> = {};
+  const phaseOrder = ['Intake', 'Workspace', 'Reconnaissance', 'Engineering', 'Review', 'Completion', 'Other'];
+
+  for (const phase of phaseOrder) phases[phase] = [];
 
   for (const log of logs) {
     const msg = log.message.toLowerCase();
@@ -186,32 +182,32 @@ function buildTreeItems(logs: LogEntry[]): TreeViewProps.Item[] {
     }
   }
 
-  // Build tree items — only include phases that have events
-  const treeItems: TreeViewProps.Item[] = [];
-
-  for (const [phase, events] of Object.entries(phases)) {
-    if (events.length === 0) continue;
-
-    const hasError = events.some(e => e.type === 'error');
-    const phaseIcon = hasError ? '❌' : '✅';
-
-    treeItems.push({
-      id: phase,
-      text: `${phaseIcon} ${phase} (${events.length})`,
-      items: events.slice(0, 20).map((event, idx) => ({
-        id: `${phase}-${idx}`,
-        text: `${event.timestamp} [${event.agentName}] ${event.message}`,
-      })),
+  // Build tree items with nestedItems
+  return phaseOrder
+    .filter(phase => phases[phase].length > 0)
+    .map(phase => {
+      const events = phases[phase];
+      const hasError = events.some(e => e.type === 'error');
+      return {
+        id: phase,
+        content: `${hasError ? '❌' : '✅'} ${phase} (${events.length})`,
+        iconName: 'folder' as const,
+        nestedItems: events.slice(0, 20).map((event, idx) => ({
+          id: `${phase}-${idx}`,
+          content: `[${event.agentName}] ${event.message}`,
+          iconName: (event.type === 'error' ? 'status-negative' : event.type === 'working' ? 'status-in-progress' : 'status-positive') as any,
+          timestamp: event.timestamp,
+        })),
+      };
     });
-  }
-
-  return treeItems;
 }
 
 export const ReasoningView: React.FC<ReasoningViewProps> = ({ logs }) => {
   const { t } = useTranslation();
+  const [expandedItems, setExpandedItems] = React.useState<string[]>([]);
 
   const { steps } = useMemo(() => deriveStepsFromLogs(logs), [logs]);
+  const treeData = useMemo(() => buildTreeData(logs), [logs]);
 
   return (
     <SpaceBetween size="l">
@@ -246,7 +242,22 @@ export const ReasoningView: React.FC<ReasoningViewProps> = ({ logs }) => {
       >
         {logs.length > 0 ? (
           <TreeView
-            items={buildTreeItems(logs)}
+            items={treeData}
+            expandedItems={expandedItems}
+            renderItem={(item) => ({
+              icon: <Icon name={item.iconName} />,
+              content: item.content,
+            })}
+            getItemId={(item) => item.id}
+            getItemChildren={(item) => item.nestedItems}
+            onItemToggle={({ detail }) =>
+              setExpandedItems(prev =>
+                detail.expanded
+                  ? [...prev, detail.item.id]
+                  : prev.filter(id => id !== detail.item.id)
+              )
+            }
+            ariaLabel="Reasoning events tree"
           />
         ) : (
           <Box margin={{ vertical: 'xs' }} textAlign="center" color="inherit">
