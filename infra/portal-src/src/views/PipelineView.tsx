@@ -34,8 +34,11 @@ function getTaskStatus(task: any): { type: 'success' | 'error' | 'warning' | 'in
   if (task.status === 'running' || task.status === 'IN_PROGRESS') return { type: 'in-progress', text: task.current_stage || 'Running' };
   if (task.status === 'completed' || task.status === 'COMPLETED') return { type: 'success', text: 'Complete' };
   if (task.status === 'completed_no_delivery') return { type: 'warning', text: 'Delivery Failed' };
-  if (task.status === 'failed' || task.status === 'FAILED') return { type: 'error', text: 'Failed' };
+  if (task.status === 'failed' || task.status === 'FAILED') return { type: 'error', text: task.error ? 'Failed' : 'Failed' };
   if (task.pr_error) return { type: 'warning', text: 'Push Failed' };
+  // DISPATCHED without started_at = waiting for container cold start
+  if (task.status === 'DISPATCHED' && !task.started_at) return { type: 'pending', text: '⏳ Awaiting container start' };
+  if (task.status === 'DISPATCHED') return { type: 'in-progress', text: 'Dispatched' };
   return { type: 'pending', text: task.current_stage || task.status || 'Pending' };
 }
 
