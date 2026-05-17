@@ -478,7 +478,7 @@ class AgentRouter:
         Supports both ## and ### heading levels (GitHub issue templates use ##,
         factory-task YAML template uses ###).
         """
-        pattern = rf"#{2,3}\s+{re.escape(section_name)}\s*\n+(.+?)(?=\n#{2,3}\s|\Z)"
+        pattern = r"#{2,3}\s+" + re.escape(section_name) + r"\s*\n+(.+?)(?=\n#{2,3}\s|\Z)"
         match = re.search(pattern, body, re.DOTALL)
         if match:
             items = re.findall(r"-\s*\[[ x]\]\s*(.+)", match.group(1))
@@ -491,7 +491,7 @@ class AgentRouter:
 
         Supports both ## and ### heading levels.
         """
-        pattern = rf"#{2,3}\s+{re.escape(section_name)}\s*\n+(.+?)(?=\n#{2,3}\s|\Z)"
+        pattern = r"#{2,3}\s+" + re.escape(section_name) + r"\s*\n+(.+?)(?=\n#{2,3}\s|\Z)"
         match = re.search(pattern, body, re.DOTALL)
         if match:
             items = re.findall(r"-\s*\[[xX]\]\s*(.+)", match.group(1))
