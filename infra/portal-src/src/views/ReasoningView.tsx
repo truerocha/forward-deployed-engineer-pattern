@@ -1,20 +1,102 @@
 /**
- * ReasoningView — Chain-of-Thought Timeline using Cloudscape Table.
+ * ReasoningView — Pipeline Reasoning using Cloudscape Steps + Table.
+ *
+ * Shows the pipeline execution as a step-by-step flow (Steps component)
+ * with detailed reasoning events in an expandable table below.
+ *
+ * Steps represent pipeline phases: Intake → Workspace → Reconnaissance →
+ * Engineering → Review → Completion. Each step shows its status
+ * (completed, in-progress, error) derived from the task's events.
+ *
+ * Ref: https://cloudscape.design/components/steps/
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 
+import Steps from '@cloudscape-design/components/steps';
 import Table, { TableProps } from '@cloudscape-design/components/table';
 import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import Box from '@cloudscape-design/components/box';
 import Badge from '@cloudscape-design/components/badge';
+import Container from '@cloudscape-design/components/container';
+import ExpandableSection from '@cloudscape-design/components/expandable-section';
 
 import { LogEntry } from '../types';
 import { useTranslation } from 'react-i18next';
 
 interface ReasoningViewProps {
   logs: LogEntry[];
+}
+
+// Pipeline phases in execution order
+const PIPELINE_PHASES = [
+  { id: 'intake', label: 'Task Intake', description: 'Webhook received, task classified and dispatched' },
+  { id: 'workspace', label: 'Workspace Setup', description: 'Repository cloned, branch created' },
+  { id: 'reconnaissance', label: 'Reconnaissance', description: 'Spec analyzed, constraints extracted' },
+  { id: 'engineering', label: 'Engineering', description: 'Code generation, implementation' },
+  { id: 'review', label: 'Review & PR', description: 'Push branch, create pull request' },
+  { id: 'completion', label: 'Completion', description: 'Task finalized, metrics emitted' },
+];
+
+function deriveStepsFromLogs(logs: LogEntry[]): { steps: any[]; activeIndex: number } {
+  // Determine which phases have been reached based on log messages
+  const phasesSeen = new Set<string>();
+  let currentPhase = 'intake';
+  let hasError = false;
+  let errorPhase = '';
+
+  for (const log of logs) {
+    const msg = log.message.toLowerCase();
+    if (msg.includes('workspace') || msg.includes('cloned') || msg.includes('branch')) {
+      phasesSeen.add('workspace');
+      currentPhase = 'workspace';
+    }
+    if (msg.includes('reconnaissance') || msg.includes('constraint') || msg.includes('scope')) {
+      phasesSeen.add('reconnaissance');
+      currentPhase = 'reconnaissance';
+    }
+    if (msg.includes('engineering') || msg.includes('step_') || msg.includes('erp') || msg.includes('executing')) {
+      phasesSeen.add('engineering');
+      currentPhase = 'engineering';
+    }
+    if (msg.includes('push') || msg.includes('pr created') || msg.includes('pull request') || msg.includes('review')) {
+      phasesSeen.add('review');
+      currentPhase = 'review';
+    }
+    if (msg.includes('complete') || msg.includes('finished') || msg.includes('done')) {
+      phasesSeen.add('completion');
+      currentPhase = 'completion';
+    }
+    if (log.type === 'error') {
+      hasError = true;
+      errorPhase = currentPhase;
+    }
+    // Always mark intake as seen
+    phasesSeen.add('intake');
+  }
+
+  const activePhaseIndex = PIPELINE_PHASES.findIndex(p => p.id === currentPhase);
+
+  const steps = PIPELINE_PHASES.map((phase, idx) => {
+    let status: 'loading' | 'finished' | 'error' | 'disabled' = 'disabled';
+
+    if (hasError && phase.id === errorPhase) {
+      status = 'error';
+    } else if (idx < activePhaseIndex) {
+      status = 'finished';
+    } else if (idx === activePhaseIndex) {
+      status = phasesSeen.has('completion') && phase.id === 'completion' ? 'finished' : 'loading';
+    }
+
+    return {
+      title: phase.label,
+      description: phase.description,
+      status,
+    };
+  });
+
+  return { steps, activeIndex: activePhaseIndex };
 }
 
 function getLogType(type: string): 'success' | 'error' | 'warning' | 'in-progress' | 'info' | 'stopped' {
@@ -69,34 +151,57 @@ const columnDefinitions: TableProps.ColumnDefinition<LogEntry>[] = [
 export const ReasoningView: React.FC<ReasoningViewProps> = ({ logs }) => {
   const { t } = useTranslation();
 
+  const { steps } = useMemo(() => deriveStepsFromLogs(logs), [logs]);
+
   return (
-    <Table
-      columnDefinitions={columnDefinitions}
-      items={logs.slice(0, 100)}
-      variant="full-page"
-      header={
-        <Header
-          variant="awsui-h1-sticky"
-          counter={`(${logs.length})`}
-          description={t('terminal.subtitle')}
-        >
-          {t('terminal.title')}
-        </Header>
-      }
-      empty={
-        <Box margin={{ vertical: 'xs' }} textAlign="center" color="inherit">
-          <SpaceBetween size="m">
-            <b>{t('terminal.awaiting')}</b>
-            <Box variant="p" color="inherit">
-              Reasoning events will appear here when tasks are executing.
+    <SpaceBetween size="l">
+      {/* Pipeline Steps — visual flow of execution phases */}
+      <Container
+        header={
+          <Header
+            variant="h2"
+            description="Current pipeline execution phase"
+          >
+            Pipeline Flow
+          </Header>
+        }
+      >
+        {logs.length > 0 ? (
+          <Steps steps={steps} />
+        ) : (
+          <Box textAlign="center" padding="l" color="inherit">
+            <StatusIndicator type="pending">
+              Awaiting pipeline execution…
+            </StatusIndicator>
+          </Box>
+        )}
+      </Container>
+
+      {/* Detailed reasoning events — expandable table */}
+      <ExpandableSection
+        variant="container"
+        headerText={`Reasoning Events (${logs.length})`}
+        headerDescription="Detailed chain-of-thought from agent execution"
+        defaultExpanded={logs.length > 0 && logs.length <= 20}
+      >
+        <Table
+          columnDefinitions={columnDefinitions}
+          items={logs.slice(0, 100)}
+          variant="embedded"
+          empty={
+            <Box margin={{ vertical: 'xs' }} textAlign="center" color="inherit">
+              <SpaceBetween size="m">
+                <b>{t('terminal.awaiting')}</b>
+                <Box variant="p" color="inherit">
+                  Reasoning events will appear here when tasks are executing.
+                </Box>
+              </SpaceBetween>
             </Box>
-          </SpaceBetween>
-        </Box>
-      }
-      stickyHeader
-      stickyHeaderVerticalOffset={48}
-      stripedRows
-      enableKeyboardNavigation
-    />
+          }
+          stripedRows
+          enableKeyboardNavigation
+        />
+      </ExpandableSection>
+    </SpaceBetween>
   );
 };
