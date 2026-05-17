@@ -488,6 +488,14 @@ def main():
         # Reconstruct event from stored task data
         _repo = _task_item.get("repo", os.environ.get("EVENT_REPO", ""))
         _issue_number = int(_task_item.get("issue_number", "0") or "0")
+        # Fallback: parse issue_number from issue_id field ("owner/repo#123" → 123)
+        if _issue_number == 0:
+            _issue_id = _task_item.get("issue_id", "")
+            if "#" in _issue_id:
+                try:
+                    _issue_number = int(_issue_id.split("#")[-1])
+                except (ValueError, IndexError):
+                    pass
         _title = _task_item.get("title", os.environ.get("EVENT_ISSUE_TITLE", ""))
         _source = _task_item.get("source", "fde.github.webhook")
 
