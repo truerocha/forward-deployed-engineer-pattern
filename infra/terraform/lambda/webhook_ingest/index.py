@@ -157,9 +157,12 @@ def handler(event, context):
         block_reason = _validate_dispatch_readiness(target_mode)
         if block_reason:
             if block_reason in ("orchestrator_not_ready", "config_read_failed"):
-                # Downgrade to monolith — emit dispatch event immediately.
-                # The dispatch_distributed EventBridge rule accepts both target_modes
-                # and starts strands-agent ECS task. No 10-min reaper wait needed.
+                # Downgrade routing decision — task runs on monolith (strands-agent).
+                # But emit dispatch event with target_mode=distributed so the
+                # dispatch_distributed rule fires and starts a container with TASK_ID.
+                # The ALM rule only fires on the original issue.labeled event —
+                # for re-executions, the dispatch rule is the only path.
+                # Ref: TASK-6da98384 — monolith emit didn't match dispatch rule.
                 target_mode = "monolith"
                 task["target_mode"] = "monolith"
                 task["status"] = "DISPATCHED"
@@ -173,9 +176,10 @@ def handler(event, context):
                         ":t": datetime.now(timezone.utc).isoformat(),
                     },
                 )
-                # Emit dispatch event so ECS starts immediately (closed-loop)
-                _emit_dispatch_event(task, depth_result, target_mode)
-                logger.info("Downgraded to monolith (dispatched immediately): %s", task["task_id"])
+                # Emit with target_mode=distributed to match dispatch rule
+                # (task record keeps monolith for observability, event uses distributed for routing)
+                _emit_dispatch_event(task, depth_result, "distributed")
+                logger.info("Downgraded to monolith (dispatch event=distributed): %s", task["task_id"])
             else:
                 # Hard block — infrastructure issue (missing image, etc.)
                 table.update_item(
